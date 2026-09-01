@@ -1,0 +1,170 @@
+openapi: 3.1.0
+info:
+  title: Model Runtime API
+  version: 0.1.0
+  description: Provider-neutral AI model execution runtime. Pre-alpha contract.
+servers:
+  - url: http://127.0.0.1:4320
+    description: Local unauthenticated reference server
+paths:
+  /v1/runtime:
+    get:
+      operationId: getRuntime
+      responses:
+        "200":
+          description: Runtime metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuntimeInfo"
+  /v1/providers:
+    get:
+      operationId: listProviders
+      responses:
+        "200":
+          description: Provider capability manifests
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProviderManifest"
+  /v1/executions:
+    post:
+      operationId: createExecution
+      description: Returns JSON events or an SSE event stream when Accept is text/event-stream.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExecutionRequest"
+      responses:
+        "200":
+          description: Execution events
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events]
+                properties:
+                  events:
+                    type: array
+                    items:
+                      type: object
+            text/event-stream:
+              schema:
+                type: string
+        "400":
+          description: Invalid request
+  /v1/executions/{executionId}/cancel:
+    post:
+      operationId: cancelExecution
+      parameters:
+        - name: executionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Cancellation requested
+        "404":
+          description: Execution not found or already terminal
+components:
+  schemas:
+    RuntimeInfo:
+      type: object
+      required: [name, protocol_version, provider_count, features]
+      properties:
+        name:
+          const: model-runtime-api
+        protocol_version:
+          type: string
+        provider_count:
+          type: integer
+          minimum: 0
+        features:
+          type: object
+          required: [routing, flow_control, usage_facts, billing]
+          properties:
+            routing: { const: true }
+            flow_control: { const: true }
+            usage_facts: { const: true }
+            billing: { const: false }
+    ExecutionRequest:
+      type: object
+      required: [ability, input]
+      additionalProperties: false
+      properties:
+        ability:
+          type: string
+          minLength: 1
+        input:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [type]
+        requirements:
+          type: object
+          additionalProperties: false
+          properties:
+            input_modalities:
+              type: array
+              items: { type: string }
+            output_modalities:
+              type: array
+              items: { type: string }
+            stream: { type: boolean }
+            tools: { type: boolean }
+            structured_output: { type: boolean }
+            async: { type: boolean }
+            cancel: { type: boolean }
+        routing:
+          type: object
+          additionalProperties: false
+          properties:
+            strategy:
+              enum: [first_available, ordered]
+            provider_order:
+              type: array
+              items: { type: string }
+            allow_fallback: { type: boolean }
+            max_attempts:
+              type: integer
+              minimum: 1
+        deadline_ms:
+          type: number
+          exclusiveMinimum: 0
+        metadata:
+          type: object
+          additionalProperties:
+            type: [string, number, boolean]
+        extensions:
+          type: object
+          additionalProperties: true
+    ProviderManifest:
+      type: object
+      required: [provider, protocol_version, models]
+      properties:
+        provider: { type: string }
+        protocol_version: { type: string }
+        models:
+          type: array
+          items:
+            type: object
+            required:
+              - model
+              - abilities
+              - input_modalities
+              - output_modalities
+              - stream
+              - tools
+              - structured_output
+              - async
+              - cancel
