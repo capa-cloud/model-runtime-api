@@ -20,6 +20,7 @@
 | [Model catalog](guides/model-catalog.md) | Versioned capability snapshots and model discovery diff |
 | [Testing](testing.md) | Reproducible local, SDK, container, and security verification |
 | [v0.1.0 verification](releases/0.1.0-verification.md) | Release gate results and explicit residual limits |
+| [v0.1.0 release notes](releases/0.1.0-notes.md) | Shipped scope, verification summary, and platform limitation |
 
 ## Security and evidence
 
