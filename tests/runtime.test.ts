@@ -93,6 +93,72 @@ describe("ModelRuntime", () => {
       error: { code: "cancelled" },
     });
   });
+
+  it("replays an idempotent submission and rejects key reuse with another request", async () => {
+    const runtime = new ModelRuntime();
+    runtime.register(new MockProvider());
+    const request = {
+      ability: "text-generation",
+      input: [{ type: "text" as const, text: "test fixture" }],
+    };
+    const first = await runtime.submit(request, "request-1");
+    const replay = await runtime.submit(request, "request-1");
+    expect(replay).toMatchObject({ execution_id: first.execution_id, idempotent_replay: true });
+    await expect(
+      runtime.submit(
+        { ...request, input: [{ type: "text", text: "different fixture" }] },
+        "request-1",
+      ),
+    ).rejects.toMatchObject({ code: "invalid_request" });
+    await runtime.waitForIdle();
+  });
+
+  it("coalesces concurrent submissions with the same idempotency key", async () => {
+    const runtime = new ModelRuntime();
+    runtime.register(new MockProvider({ delayMs: 10 }));
+    const request = {
+      ability: "text-generation",
+      input: [{ type: "text" as const, text: "test fixture" }],
+    };
+    const [first, second] = await Promise.all([
+      runtime.submit(request, "request-concurrent"),
+      runtime.submit(request, "request-concurrent"),
+    ]);
+    expect(first.execution_id).toBe(second.execution_id);
+    expect([first.idempotent_replay, second.idempotent_replay].sort()).toEqual([false, true]);
+    await runtime.waitForIdle();
+  });
+
+  it("resumes stored events after a cursor", async () => {
+    const runtime = new ModelRuntime();
+    runtime.register(new MockProvider());
+    const submission = await runtime.submit({
+      ability: "text-generation",
+      input: [{ type: "text", text: "test fixture" }],
+    });
+    await runtime.waitForIdle();
+    const resumed = await collect(runtime.events(submission.execution_id, 4));
+    expect(resumed[0]?.sequence).toBe(5);
+    expect(resumed.at(-1)?.type).toBe("execution.completed");
+    expect(await runtime.get(submission.execution_id)).toMatchObject({
+      status: "succeeded",
+      last_sequence: 7,
+      result: { outputs: [{ index: 0, type: "text", text: "hello from mock" }] },
+    });
+  });
+
+  it("rejects fields outside the normative request schema", async () => {
+    const runtime = new ModelRuntime();
+    runtime.register(new MockProvider());
+    const request = {
+      ability: "text-generation",
+      input: [{ type: "text", text: "test fixture" }],
+      unexpected: true,
+    };
+    await expect(runtime.submit(request as never)).rejects.toMatchObject({
+      code: "invalid_request",
+    });
+  });
 });
 
 async function collect(iterable: AsyncIterable<RuntimeEvent>): Promise<RuntimeEvent[]> {

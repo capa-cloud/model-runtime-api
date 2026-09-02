@@ -41,6 +41,14 @@ build/Release
 node_modules/
 jspm_packages/
 
+# Python build and test artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+dist/
+
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 

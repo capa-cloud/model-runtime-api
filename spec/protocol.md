@@ -2,6 +2,9 @@
 
 Status: pre-alpha normative draft.
 
+The machine-readable request schema is generated from the protocol package into
+`spec/schema/execution-request.json`; CI rejects drift.
+
 ## Request
 
 An execution request contains:
@@ -17,6 +20,14 @@ An execution request contains:
 The runtime must reject malformed requests and unsatisfied requirements before starting provider
 output.
 
+`POST /v1/executions` returns `202` with an execution ID. `Idempotency-Key` reuse with the same
+request returns that execution; reuse with a different request fails. Status, result, cancellation,
+and event-stream access use the execution ID.
+
+For streaming text/tool providers, the EventStore deterministically materializes `output.delta` and
+tool argument fragments into the result snapshot. For asynchronous media providers,
+`output.result` remains the provider result and artifact references are listed separately.
+
 ## Events
 
 Events use an execution-scoped monotonic `sequence` and timestamp.
@@ -27,12 +38,20 @@ Events use an execution-scoped monotonic `sequence` and timestamp.
 | `route.selected` | Runtime selected one provider/model attempt |
 | `route.attempt_failed` | Retryable attempt failed before fallback |
 | `output.delta` | Incremental output data |
+| `tool.call.started` | A provider began a named tool call |
+| `tool.call.arguments.delta` | Partial tool argument JSON or text; callers accumulate before parsing |
+| `execution.progress` | An asynchronous provider reports queued or processing progress |
+| `output.result` | A normalized asynchronous result and optional artifact references |
 | `usage.reported` | One or more usage facts became available |
 | `execution.completed` | Execution succeeded and is terminal |
 | `execution.failed` | Execution failed or was cancelled and is terminal |
 
 Provider adapters do not assign execution IDs, sequence numbers, or timestamps. The runtime owns
 that event envelope.
+
+The events endpoint accepts `after` or `Last-Event-ID`. Only events with larger sequence values are
+returned. An EventStore implementation must preserve append-only ordering and terminal-event
+visibility; durability across process restarts depends on the selected EventStore.
 
 ## Error behavior
 
@@ -51,3 +70,6 @@ non-negative. `source` states whether the provider reported the value or the run
 Extensions are an escape hatch, not a compatibility claim. Adapter documentation must describe the
 public source and behavior of each extension. Core fields must not change meaning based on an
 undocumented extension.
+
+Provider credentials are constructor or deployment inputs. They are never request extensions,
+events, manifests, telemetry attributes, or error content.

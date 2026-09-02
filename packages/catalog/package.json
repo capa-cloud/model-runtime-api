@@ -1,0 +1,19 @@
+{
+  "name": "@model-runtime/catalog",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "bin": {
+    "model-runtime-catalog": "./dist/cli.js"
+  },
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@model-runtime/protocol": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -b"
+  }
+}

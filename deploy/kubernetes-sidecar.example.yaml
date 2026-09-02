@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-runtime-example
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: model-runtime-example
+  template:
+    metadata:
+      labels:
+        app: model-runtime-example
+    spec:
+      containers:
+        - name: application
+          image: example.invalid/application:replace-me
+        - name: model-runtime
+          image: example.invalid/model-runtime-api:replace-me
+          env:
+            - name: MODEL_RUNTIME_HOST
+              value: "127.0.0.1"
+            - name: MODEL_RUNTIME_PORT
+              value: "4320"
+          ports:
+            - name: runtime
+              containerPort: 4320
+          readinessProbe:
+            httpGet:
+              host: 127.0.0.1
+              path: /v1/runtime
+              port: runtime
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true

@@ -15,6 +15,8 @@ Model Runtime API 是一个供应商中立的模型执行协议与参考 Runtime
 - Provider 上报或 Runtime 推导的 Usage Fact；
 - Provider SPI、确定性 Mock 和 Conformance Runner；
 - 可选的本地 HTTP/SSE 参考服务与 TypeScript SDK。
+- 基于公开文档 clean-room 实现的 OpenAI Responses、Anthropic Messages 和 fal Queue Adapter；
+- TypeScript、Go、Python Client，以及版本化能力目录 diff。
 
 ## 项目不提供什么
 
@@ -49,7 +51,9 @@ pnpm check
 pnpm dev
 ```
 
-参考服务默认绑定 `127.0.0.1:4320`，不包含鉴权，不得直接暴露到不可信网络。
+参考服务默认绑定 `127.0.0.1:4320`，不包含鉴权，不得直接暴露到不可信网络。创建执行返回 `202` 和 execution ID，随后通过 status、events、result、cancel 接口控制完整生命周期。
+
+协议、Provider 资料来源、威胁模型、Gateway 边界和 Kubernetes Sidecar 示例分别位于 `spec/`、`docs/evidence/`、`docs/security/`、`docs/guides/` 和 `deploy/`。
 
 ## 数据安全
 

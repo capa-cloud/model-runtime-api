@@ -9,6 +9,9 @@
   "dependencies": {
     "@model-runtime/core": "workspace:*",
     "@model-runtime/protocol": "workspace:*",
+    "@model-runtime/provider-anthropic": "workspace:*",
+    "@model-runtime/provider-fal": "workspace:*",
+    "@model-runtime/provider-openai": "workspace:*",
     "@model-runtime/provider-mock": "workspace:*"
   },
   "scripts": {

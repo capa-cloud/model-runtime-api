@@ -38,4 +38,4 @@ Run:
 pnpm check
 ```
 
-This includes formatting, type checking, tests, build, and public-data scanning.
+This includes formatting, TypeScript/Go/Python tests, type checking, build, and public-data scanning.

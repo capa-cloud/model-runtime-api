@@ -1,0 +1,25 @@
+name: Bug report
+description: Report a reproducible protocol or implementation defect
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, private endpoints, customer payloads, or production logs.
+  - type: input
+    id: version
+    attributes:
+      label: Revision or version
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Sanitized reproduction
+      description: Use fictional identifiers and local fixtures.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true

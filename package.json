@@ -9,18 +9,28 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "check": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build && pnpm scan:public",
+    "check": "pnpm format:check && pnpm typecheck && pnpm test && pnpm check:sdks && pnpm build && pnpm check:schema && pnpm check:docs && pnpm scan:public",
+    "check:docs": "node scripts/check-docs.mjs",
+    "check:schema": "node scripts/generate-schema.mjs --check",
+    "check:go": "cd sdk/go && go test ./...",
+    "check:python": "PYTHONPATH=sdk/python/src python3 -m unittest discover -s sdk/python/tests -v",
+    "check:sdks": "pnpm check:go && pnpm check:python",
     "dev": "pnpm --filter @model-runtime/server dev",
     "format": "biome format --write .",
     "format:check": "biome format .",
-    "scan:public": "node scripts/scan-public.mjs",
+    "generate:schema": "pnpm --filter @model-runtime/protocol build && node scripts/generate-schema.mjs",
+    "scan:public": "node scripts/scan-public.mjs && pnpm scan:secrets",
+    "scan:secrets": "secretlint '**/*'",
     "test": "pnpm build && vitest run",
     "typecheck": "tsc -b --pretty false"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.11",
     "@types/node": "24.13.3",
+    "@secretlint/secretlint-rule-preset-recommend": "13.0.5",
+    "secretlint": "13.0.5",
     "typescript": "5.9.3",
-    "vitest": "3.2.7"
+    "vitest": "3.2.7",
+    "yaml": "2.9.0"
   }
 }

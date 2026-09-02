@@ -36,7 +36,15 @@ paths:
   /v1/executions:
     post:
       operationId: createExecution
-      description: Returns JSON events or an SSE event stream when Accept is text/event-stream.
+      description: Accepts an execution for asynchronous processing.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
       requestBody:
         required: true
         content:
@@ -44,38 +52,91 @@ paths:
             schema:
               $ref: "#/components/schemas/ExecutionRequest"
       responses:
-        "200":
-          description: Execution events
+        "202":
+          description: New execution accepted
           content:
             application/json:
               schema:
-                type: object
-                required: [events]
-                properties:
-                  events:
-                    type: array
-                    items:
-                      type: object
+                $ref: "#/components/schemas/ExecutionSubmission"
+        "200":
+          description: Idempotent replay of an existing execution
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionSubmission"
+        "400":
+          description: Invalid request
+  /v1/executions/{executionId}:
+    get:
+      operationId: getExecution
+      parameters:
+        - $ref: "#/components/parameters/ExecutionId"
+      responses:
+        "200":
+          description: Materialized execution state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionSnapshot"
+        "404":
+          description: Execution not found
+  /v1/executions/{executionId}/events:
+    get:
+      operationId: streamExecutionEvents
+      parameters:
+        - $ref: "#/components/parameters/ExecutionId"
+        - name: after
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+        - name: Last-Event-ID
+          in: header
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        "200":
+          description: Resumable SSE stream. Event IDs equal monotonic execution sequence values.
+          content:
             text/event-stream:
               schema:
                 type: string
-        "400":
-          description: Invalid request
+        "404":
+          description: Execution not found
+  /v1/executions/{executionId}/result:
+    get:
+      operationId: getExecutionResult
+      parameters:
+        - $ref: "#/components/parameters/ExecutionId"
+      responses:
+        "200":
+          description: Successful normalized result, artifacts, and usage facts
+        "409":
+          description: Execution has not succeeded
+        "404":
+          description: Execution not found
   /v1/executions/{executionId}/cancel:
     post:
       operationId: cancelExecution
       parameters:
-        - name: executionId
-          in: path
-          required: true
-          schema:
-            type: string
+        - $ref: "#/components/parameters/ExecutionId"
       responses:
         "202":
           description: Cancellation requested
         "404":
           description: Execution not found or already terminal
 components:
+  parameters:
+    ExecutionId:
+      name: executionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   schemas:
     RuntimeInfo:
       type: object
@@ -138,6 +199,11 @@ components:
             max_attempts:
               type: integer
               minimum: 1
+              maximum: 32
+            retry_budget_ms:
+              type: integer
+              minimum: 1
+              maximum: 86400000
         deadline_ms:
           type: number
           exclusiveMinimum: 0
@@ -148,6 +214,49 @@ components:
         extensions:
           type: object
           additionalProperties: true
+    ExecutionSubmission:
+      type: object
+      required: [execution_id, status, created_at, idempotent_replay]
+      properties:
+        execution_id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/ExecutionStatus" }
+        created_at: { type: string, format: date-time }
+        idempotent_replay: { type: boolean }
+    ExecutionSnapshot:
+      type: object
+      required: [execution_id, status, created_at, updated_at, last_sequence, usage]
+      properties:
+        execution_id: { type: string, format: uuid }
+        status: { $ref: "#/components/schemas/ExecutionStatus" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        last_sequence: { type: integer, minimum: 0 }
+        result: {}
+        artifacts:
+          type: array
+          items: { $ref: "#/components/schemas/OutputArtifact" }
+        usage:
+          type: array
+          items: { $ref: "#/components/schemas/UsageFact" }
+    ExecutionStatus:
+      type: string
+      enum: [accepted, routing, running, succeeded, failed, cancelled]
+    OutputArtifact:
+      type: object
+      required: [uri]
+      properties:
+        uri: { type: string, format: uri }
+        media_type: { type: string }
+        name: { type: string }
+        expires_at: { type: string, format: date-time }
+    UsageFact:
+      type: object
+      required: [unit, quantity, source]
+      properties:
+        unit: { type: string }
+        quantity: { type: number, minimum: 0 }
+        source: { enum: [provider, runtime] }
+        complete: { type: boolean }
     ProviderManifest:
       type: object
       required: [provider, protocol_version, models]

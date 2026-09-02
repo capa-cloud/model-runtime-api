@@ -17,29 +17,38 @@ public adapter evidence are available.
 
 ## M1: Contract hardening
 
-- [ ] Runtime schema validation generated from the normative specification
-- [ ] Idempotent execution creation
-- [ ] Explicit asynchronous submit/status/result lifecycle
-- [ ] Durable event-store SPI and resumable SSE cursors
-- [ ] Retry budgets and richer cancellation conformance
-- [ ] OpenTelemetry GenAI semantic-convention mapping
-- [ ] Threat model for shared data-plane deployments
+- [x] Runtime schema validation generated from the normative specification
+- [x] Idempotent execution creation
+- [x] Explicit asynchronous submit/status/result lifecycle
+- [x] Durable event-store SPI and resumable SSE cursors
+- [x] Retry budgets and richer cancellation conformance
+- [x] OpenTelemetry GenAI semantic-convention mapping
+- [x] Threat model for shared data-plane deployments
 
 ## M2: Public provider adapters
 
-- [ ] One typed synchronous/SSE model provider
-- [ ] One content-block/tool-stream provider
-- [ ] One asynchronous media-task provider
-- [ ] Public-documentation evidence registry per adapter
-- [ ] Sanitized contract fixtures and adapter-specific conformance suites
+- [x] One typed synchronous/SSE model provider
+- [x] One content-block/tool-stream provider
+- [x] One asynchronous media-task provider
+- [x] Public-documentation evidence registry per adapter
+- [x] Sanitized contract fixtures and adapter-specific conformance suites
 
 ## M3: Ecosystem integration
 
-- [ ] Go client SDK
-- [ ] Python client SDK
-- [ ] Optional sidecar packaging
-- [ ] Gateway integration example with authentication remaining outside the runtime
-- [ ] Versioned capability catalog and model-discovery experiment
+- [x] Go client SDK
+- [x] Python client SDK
+- [x] Optional sidecar packaging
+- [x] Gateway integration example with authentication remaining outside the runtime
+- [x] Versioned capability catalog and model-discovery experiment
+
+## Post-0.1 candidates
+
+These are not part of the completed v0.1 contract:
+
+- production durable EventStore implementations and distributed flow-control coordination;
+- live-account provider certification and scheduled model-radar ingestion;
+- stable package-registry publication after API feedback;
+- authenticated hosted gateway, tenant control plane, or customer billing.
 
 ## Non-goals
 

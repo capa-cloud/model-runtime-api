@@ -1,15 +1,18 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type {
   CapabilityRequirements,
   ExecutionRequest,
+  ExecutionSnapshot,
+  ExecutionSubmission,
   ModelCapability,
   ProviderManifest,
   ResolvedTarget,
   RuntimeEvent,
   RuntimeInfo,
 } from "@model-runtime/protocol";
-import { protocolVersion } from "@model-runtime/protocol";
+import { protocolVersion, validateExecutionRequest } from "@model-runtime/protocol";
 import { RuntimeError, normalizeError } from "./errors.js";
+import { type EventStore, InMemoryEventStore } from "./event-store.js";
 import { ConcurrencyGate } from "./flow-control.js";
 import type { ModelProvider, ProviderCandidate } from "./provider.js";
 
@@ -18,17 +21,28 @@ interface RegisteredProvider {
   gate: ConcurrencyGate;
 }
 
+interface IdempotencyRecord {
+  fingerprint: string;
+  submission: Promise<ExecutionSubmission>;
+}
+
 export class ModelRuntime {
   readonly #providers = new Map<string, RegisteredProvider>();
   readonly #executions = new Map<string, AbortController>();
+  readonly #idempotency = new Map<string, IdempotencyRecord>();
+  readonly #tasks = new Set<Promise<void>>();
+  readonly #store: EventStore;
+
+  constructor(options: { eventStore?: EventStore } = {}) {
+    this.#store = options.eventStore ?? new InMemoryEventStore();
+  }
 
   register(
     provider: ModelProvider,
     limits?: { maxConcurrency?: number; maxQueueDepth?: number },
   ): void {
-    if (this.#providers.has(provider.id)) {
+    if (this.#providers.has(provider.id))
       throw new Error(`Provider already registered: ${provider.id}`);
-    }
     this.#providers.set(provider.id, {
       provider,
       gate: new ConcurrencyGate(limits?.maxConcurrency, limits?.maxQueueDepth),
@@ -40,17 +54,78 @@ export class ModelRuntime {
       name: "model-runtime-api",
       protocol_version: protocolVersion,
       provider_count: this.#providers.size,
-      features: {
-        routing: true,
-        flow_control: true,
-        usage_facts: true,
-        billing: false,
-      },
+      features: { routing: true, flow_control: true, usage_facts: true, billing: false },
     };
   }
 
   async manifests(): Promise<ProviderManifest[]> {
     return Promise.all([...this.#providers.values()].map(({ provider }) => provider.manifest()));
+  }
+
+  async submit(request: ExecutionRequest, idempotencyKey?: string): Promise<ExecutionSubmission> {
+    validateRequest(request);
+    const fingerprint = fingerprintRequest(request);
+    if (idempotencyKey) {
+      const existing = this.#idempotency.get(idempotencyKey);
+      if (existing) {
+        if (existing.fingerprint !== fingerprint) {
+          throw new RuntimeError(
+            "invalid_request",
+            "Idempotency key was already used with a different request",
+          );
+        }
+        const submission = await existing.submission;
+        const snapshot = await this.#store.get(submission.execution_id);
+        return {
+          ...submission,
+          status: snapshot?.status ?? submission.status,
+          idempotent_replay: true,
+        };
+      }
+    }
+
+    const submission = this.#createSubmission(request);
+    if (idempotencyKey) this.#idempotency.set(idempotencyKey, { fingerprint, submission });
+    try {
+      return await submission;
+    } catch (error) {
+      if (idempotencyKey && this.#idempotency.get(idempotencyKey)?.submission === submission) {
+        this.#idempotency.delete(idempotencyKey);
+      }
+      throw error;
+    }
+  }
+
+  async #createSubmission(request: ExecutionRequest): Promise<ExecutionSubmission> {
+    const executionId = randomUUID();
+    const createdAt = new Date().toISOString();
+    const controller = new AbortController();
+    await this.#store.create(executionId, createdAt);
+    this.#executions.set(executionId, controller);
+    const iterator = this.#run(request, executionId, controller);
+    const first = await iterator.next();
+    if (first.value) await this.#store.append(first.value);
+    const task = this.#drain(iterator, executionId);
+    this.#tasks.add(task);
+    task.finally(() => this.#tasks.delete(task)).catch(() => undefined);
+    return {
+      execution_id: executionId,
+      status: "accepted",
+      created_at: createdAt,
+      idempotent_replay: false,
+    };
+  }
+
+  async get(executionId: string): Promise<ExecutionSnapshot | undefined> {
+    return this.#store.get(executionId);
+  }
+
+  events(
+    executionId: string,
+    afterSequence = 0,
+    signal?: AbortSignal,
+  ): AsyncIterable<RuntimeEvent> {
+    return this.#store.watch(executionId, afterSequence, signal);
   }
 
   cancel(executionId: string): boolean {
@@ -64,8 +139,33 @@ export class ModelRuntime {
     validateRequest(request);
     const executionId = randomUUID();
     const controller = new AbortController();
-    const deadline = createDeadline(request.deadline_ms, controller);
     this.#executions.set(executionId, controller);
+    try {
+      yield* this.#run(request, executionId, controller);
+    } finally {
+      this.#executions.delete(executionId);
+    }
+  }
+
+  async waitForIdle(): Promise<void> {
+    await Promise.all([...this.#tasks]);
+  }
+
+  async #drain(iterator: AsyncGenerator<RuntimeEvent>, executionId: string): Promise<void> {
+    try {
+      for await (const event of iterator) await this.#store.append(event);
+    } finally {
+      this.#executions.delete(executionId);
+    }
+  }
+
+  async *#run(
+    request: ExecutionRequest,
+    executionId: string,
+    controller: AbortController,
+  ): AsyncGenerator<RuntimeEvent> {
+    const deadline = createDeadline(request.deadline_ms, controller);
+    const routingStartedAt = Date.now();
     let sequence = 0;
     const event = <T extends Omit<RuntimeEvent, "execution_id" | "sequence" | "time">>(
       value: T,
@@ -86,13 +186,14 @@ export class ModelRuntime {
           `No provider satisfies ability: ${request.ability}`,
         );
       }
-
       const fallback = request.routing?.allow_fallback ?? false;
       const requestedAttempts = request.routing?.max_attempts ?? (fallback ? candidates.length : 1);
       const maxAttempts = Math.max(1, Math.min(requestedAttempts, candidates.length));
+      const retryBudgetMs = request.routing?.retry_budget_ms;
       let lastError: RuntimeError | undefined;
 
       for (let index = 0; index < maxAttempts; index += 1) {
+        if (retryBudgetMs && Date.now() - routingStartedAt >= retryBudgetMs) break;
         const candidate = candidates[index];
         if (!candidate) break;
         const target: ResolvedTarget = {
@@ -100,7 +201,6 @@ export class ModelRuntime {
           model: candidate.capability.model,
         };
         yield event({ type: "route.selected", status: "routing", target, attempt: index + 1 });
-
         const registered = this.#providers.get(candidate.provider.id);
         if (!registered) throw new Error("Selected provider is not registered");
         let release: (() => void) | undefined;
@@ -114,14 +214,11 @@ export class ModelRuntime {
             target,
             signal: controller.signal,
           })) {
-            if (providerEvent.type === "output.delta") {
-              yield event({ ...providerEvent, status: "running" });
-            } else if (providerEvent.type === "usage.reported") {
+            if (providerEvent.type === "execution.completed") completed = true;
+            else if (providerEvent.type === "usage.reported") {
               validateUsage(providerEvent.facts);
               yield event({ ...providerEvent, status: "running" });
-            } else {
-              completed = true;
-            }
+            } else yield event({ ...providerEvent, status: "running" });
           }
           if (!completed) {
             throw new RuntimeError(
@@ -134,7 +231,8 @@ export class ModelRuntime {
         } catch (error) {
           lastError = normalizeError(error);
           if (controller.signal.aborted) break;
-          if (index + 1 < maxAttempts && lastError.retryable) {
+          const budgetAvailable = !retryBudgetMs || Date.now() - routingStartedAt < retryBudgetMs;
+          if (index + 1 < maxAttempts && lastError.retryable && budgetAvailable) {
             yield event({
               type: "route.attempt_failed",
               status: "routing",
@@ -172,7 +270,6 @@ export class ModelRuntime {
       });
     } finally {
       deadline.clear();
-      this.#executions.delete(executionId);
     }
   }
 
@@ -195,7 +292,6 @@ export class ModelRuntime {
         }
       }
     }
-
     const order = request.routing?.provider_order;
     if (order?.length) {
       const rank = new Map(order.map((provider, index) => [provider, index]));
@@ -224,20 +320,12 @@ function satisfies(capability: ModelCapability, requirements: CapabilityRequirem
 }
 
 function validateRequest(request: ExecutionRequest): void {
-  if (!request || typeof request !== "object") {
-    throw new RuntimeError("invalid_request", "Request must be an object");
-  }
-  if (typeof request.ability !== "string" || request.ability.trim() === "") {
-    throw new RuntimeError("invalid_request", "ability must be a non-empty string");
-  }
-  if (!Array.isArray(request.input) || request.input.length === 0) {
-    throw new RuntimeError("invalid_request", "input must contain at least one part");
-  }
-  if (
-    request.deadline_ms !== undefined &&
-    (!Number.isFinite(request.deadline_ms) || request.deadline_ms < 1)
-  ) {
-    throw new RuntimeError("invalid_request", "deadline_ms must be a positive number");
+  const validation = validateExecutionRequest(request);
+  if (!validation.valid) {
+    const detail = validation.errors
+      .map((error) => `${error.instancePath || "/"} ${error.message ?? "is invalid"}`)
+      .join("; ");
+    throw new RuntimeError("invalid_request", `Request schema validation failed: ${detail}`);
   }
 }
 
@@ -247,6 +335,22 @@ function validateUsage(facts: { unit: string; quantity: number }[]): void {
       throw new RuntimeError("provider_protocol_error", "Provider reported an invalid usage fact");
     }
   }
+}
+
+function fingerprintRequest(request: ExecutionRequest): string {
+  return createHash("sha256").update(stableStringify(request)).digest("hex");
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 function createDeadline(deadlineMs: number | undefined, controller: AbortController) {

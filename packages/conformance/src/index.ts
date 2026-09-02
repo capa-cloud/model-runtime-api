@@ -62,6 +62,32 @@ export async function runProviderConformance(provider: ModelProvider): Promise<C
       check("execution.completion_is_last", events.at(-1)?.type === "execution.completed"),
     );
     checks.push(check("usage.non_negative", !invalidUsage));
+
+    if (capability.cancel) {
+      const cancelController = new AbortController();
+      const iterator = provider
+        .execute({
+          executionId: "execution-conformance-cancel",
+          request,
+          target: { provider: provider.id, model: capability.model },
+          signal: cancelController.signal,
+        })
+        [Symbol.asyncIterator]();
+      await iterator.next();
+      cancelController.abort();
+      let cancellationObserved = false;
+      try {
+        await iterator.next();
+      } catch (error) {
+        cancellationObserved =
+          (error instanceof Error && error.name === "AbortError") ||
+          (typeof error === "object" &&
+            error !== null &&
+            "code" in error &&
+            error.code === "cancelled");
+      }
+      checks.push(check("execution.cancellation", cancellationObserved));
+    }
   } catch (error) {
     checks.push(
       check(

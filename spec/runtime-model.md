@@ -42,6 +42,7 @@ The runtime owns execution routing primitives:
 - required-capability filtering;
 - deterministic candidate ordering;
 - bounded retry and fallback;
+- caller-declared maximum attempts constrained by a wall-clock retry budget;
 - provider-local concurrency and queue admission;
 - route-attempt evidence.
 
@@ -68,3 +69,10 @@ from execution truth and must never turn an unmatched unit into zero cost silent
 - Embedded core: intended for tests, CLIs, and single-process development.
 
 The reference server is a protocol development tool, not a production gateway.
+
+## Storage and recovery
+
+The core depends on an EventStore SPI. The bundled in-memory implementation supports append-only
+events, materialized status/result, and resumable cursors within one process. Production durability,
+cross-instance coordination, retention, encryption, and backup belong to a deployment-specific
+EventStore implementation.

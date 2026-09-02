@@ -63,6 +63,7 @@ export interface RoutingRequest {
   provider_order?: string[];
   allow_fallback?: boolean;
   max_attempts?: number;
+  retry_budget_ms?: number;
 }
 
 export interface ExecutionRequest {
@@ -73,6 +74,13 @@ export interface ExecutionRequest {
   deadline_ms?: number;
   metadata?: Record<string, string | number | boolean>;
   extensions?: Record<string, unknown>;
+}
+
+export interface ExecutionSubmission {
+  execution_id: string;
+  status: ExecutionStatus;
+  created_at: string;
+  idempotent_replay: boolean;
 }
 
 export interface ResolvedTarget {
@@ -99,6 +107,26 @@ export interface UsageFact {
   quantity: number;
   source: "provider" | "runtime";
   complete?: boolean;
+}
+
+export interface OutputArtifact {
+  uri: string;
+  media_type?: string;
+  name?: string;
+  expires_at?: string;
+}
+
+export interface ExecutionSnapshot {
+  execution_id: string;
+  status: ExecutionStatus;
+  created_at: string;
+  updated_at: string;
+  target?: ResolvedTarget;
+  error?: RuntimeErrorShape;
+  last_sequence: number;
+  result?: unknown;
+  artifacts?: OutputArtifact[];
+  usage: UsageFact[];
 }
 
 interface EventBase {
@@ -132,6 +160,30 @@ export type RuntimeEvent =
       delta: string;
     })
   | (EventBase & {
+      type: "tool.call.started";
+      status: "running";
+      call_id: string;
+      name: string;
+    })
+  | (EventBase & {
+      type: "tool.call.arguments.delta";
+      status: "running";
+      call_id: string;
+      delta: string;
+    })
+  | (EventBase & {
+      type: "execution.progress";
+      status: "running";
+      phase: "queued" | "processing";
+      progress?: number;
+    })
+  | (EventBase & {
+      type: "output.result";
+      status: "running";
+      result: unknown;
+      artifacts?: OutputArtifact[];
+    })
+  | (EventBase & {
       type: "usage.reported";
       status: "running";
       facts: UsageFact[];
@@ -152,6 +204,26 @@ export type ProviderEvent =
       type: "output.delta";
       output_index: number;
       delta: string;
+    }
+  | {
+      type: "tool.call.started";
+      call_id: string;
+      name: string;
+    }
+  | {
+      type: "tool.call.arguments.delta";
+      call_id: string;
+      delta: string;
+    }
+  | {
+      type: "execution.progress";
+      phase: "queued" | "processing";
+      progress?: number;
+    }
+  | {
+      type: "output.result";
+      result: unknown;
+      artifacts?: OutputArtifact[];
     }
   | {
       type: "usage.reported";
@@ -176,3 +248,5 @@ export interface RuntimeInfo {
 export function isTerminalEvent(event: RuntimeEvent): boolean {
   return event.type === "execution.completed" || event.type === "execution.failed";
 }
+
+export { executionRequestSchema, validateExecutionRequest } from "./schema.js";

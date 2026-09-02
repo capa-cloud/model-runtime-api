@@ -4,7 +4,12 @@
     { "path": "packages/protocol" },
     { "path": "packages/core" },
     { "path": "packages/provider-mock" },
+    { "path": "packages/provider-openai" },
+    { "path": "packages/provider-anthropic" },
+    { "path": "packages/provider-fal" },
     { "path": "packages/conformance" },
+    { "path": "packages/catalog" },
+    { "path": "packages/otel" },
     { "path": "packages/server" },
     { "path": "packages/sdk-typescript" }
   ]
