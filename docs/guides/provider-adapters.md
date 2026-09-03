@@ -1,5 +1,9 @@
 # Provider adapters
 
+![Three distinct provider protocol families translated into one ordered event family.](../assets/provider-adapters.jpg)
+
+*Concept image. Adapter behavior is defined by public sources, code, and contract tests.*
+
 The bundled adapters are clean-room protocol translators. They are libraries, not enabled by
 default. The reference CLI loads only the deterministic Mock Provider unless
 `MODEL_RUNTIME_CONFIG` points to a configuration file.
@@ -43,3 +47,15 @@ or routing policy. The example uses fictional identifiers only.
 - Artifact URLs can expire and are not copied or made permanent by this runtime.
 
 All adapters have local HTTP fixture tests. They are not live-tested with real credentials in CI.
+
+## Shared invariants
+
+Every adapter must:
+
+1. declare capabilities before routing;
+2. accept execution identity, target, and cancellation from the Runtime;
+3. emit provider events without assigning public sequence numbers;
+4. bound provider response bodies and stream frames;
+5. normalize portable errors without exposing provider response bodies or credentials;
+6. emit only sourced or explicitly runtime-derived usage facts;
+7. terminate with exactly one provider completion signal.

@@ -1,5 +1,9 @@
 # Documentation index
 
+![Provider-neutral model execution passing through one stable runtime.](assets/model-runtime-hero.jpg)
+
+*Concept image. Normative behavior lives in `spec/`.*
+
 ## Start here
 
 | Document | Purpose |
@@ -35,3 +39,10 @@
 
 - [ADR-0001: Runtime data plane, not tenant gateway](decisions/0001-runtime-not-gateway.md)
 - [ADR-0002: Usage facts are not billing records](decisions/0002-usage-is-not-billing.md)
+
+## Visual assets
+
+The four editorial images under `assets/` were generated through AnyCap and optimized to 1600 x 900
+JPEG for GitHub delivery. Each image has a neighboring `.prompt.md` file containing its public
+prompt, generation request ID, processing record, and independent image-read result. Exact protocol
+facts remain in Mermaid, OpenAPI, tests, and normative text rather than generated pixels.

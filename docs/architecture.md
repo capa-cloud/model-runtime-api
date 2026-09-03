@@ -3,28 +3,21 @@
 Model Runtime API is a provider-neutral execution data plane. It can run as a shared service,
 sidecar, or embedded core, but the public contract does not absorb tenant-gateway or billing duties.
 
-```text
-Application / Agent
-        |
-Authenticated AI Gateway
-        |  ability + requirements + opaque idempotency key
-        v
-HTTP/SSE Server + TypeScript/Go/Python clients
-        |
-Model Runtime Core
-  - request schema validation
-  - capability routing and bounded fallback
-  - provider-local flow control and cancellation
-  - append-only EventStore and resumable cursors
-  - usage facts and metadata-only OTel mapping
-        |
-Provider SPI
-  +-- Mock
-  +-- OpenAI Responses
-  +-- Anthropic Messages
-  +-- fal Queue
-        |
-Public provider APIs or local fixtures
+```mermaid
+flowchart TB
+    caller[Application / Agent] --> gateway[Authenticated AI Gateway]
+    gateway --> server[HTTP/SSE Server]
+    server --> core[Model Runtime Core]
+    core --> store[(EventStore SPI)]
+    core --> route{Capability routing}
+    route --> openai[OpenAI Responses Adapter]
+    route --> anthropic[Anthropic Messages Adapter]
+    route --> fal[fal Queue Adapter]
+    route --> mock[Mock Adapter]
+    openai --> providers[Public provider APIs]
+    anthropic --> providers
+    fal --> providers
+    mock --> fixtures[Local fixtures]
 ```
 
 ## Package ownership
@@ -41,6 +34,10 @@ Public provider APIs or local fixtures
 | `sdk-*` | Runtime HTTP/SSE clients | Provider credentials or routing |
 
 ## Synchronous model path
+
+![Conceptual stages of a controlled model execution.](assets/execution-lifecycle.jpg)
+
+*The image explains stages; the event order below defines behavior.*
 
 ```text
 submit -> accepted -> capability filter -> route.selected
@@ -62,6 +59,13 @@ submit -> accepted -> provider queue submit
 
 The runtime records artifact references but does not dereference or persist them. Deployments own
 download allowlists, malware checks, retention, and durable storage.
+
+## Provider translation boundary
+
+![Different public protocol families translated into one runtime event family.](assets/provider-adapters.jpg)
+
+Adapters translate provider-specific requests and events. They do not control execution IDs,
+runtime sequence numbers, routing policy, tenant identity, or billing.
 
 ## Recovery model
 

@@ -21,3 +21,13 @@ The project is pre-alpha, but breaking changes still require:
 - a decision record or compatibility note;
 - matching protocol, implementation, tests, and examples;
 - a clear migration description in the pull request.
+
+## Documentation media
+
+- Generated images are explanatory only; exact states, labels, values, and relationships belong in
+  Mermaid, OpenAPI, tests, or normative text.
+- Prompts must contain public information only and request no logos, provider branding, credentials,
+  private endpoints, or customer content.
+- Every bitmap under `docs/assets/` requires a neighboring `.prompt.md` provenance and QA record.
+- Keep each bitmap below 512 KiB and the complete bitmap set below 2 MiB.
+- Run `pnpm check:docs` and visually inspect the optimized consumer asset before committing.

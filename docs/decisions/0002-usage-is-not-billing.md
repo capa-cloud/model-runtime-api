@@ -1,5 +1,9 @@
 # ADR-0002: Usage facts are not billing records
 
+![Different usage units measured and stored as immutable facts.](../assets/usage-facts.jpg)
+
+*The image is explanatory; the decision below defines the boundary.*
+
 - Status: accepted
 - Date: 2026-09-01
 

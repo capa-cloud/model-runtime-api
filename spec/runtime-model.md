@@ -14,10 +14,22 @@ Status: pre-alpha normative draft.
 
 ## Execution state machine
 
-```text
-accepted -> routing -> running -> succeeded
-                   |          \-> failed
-                   \------------> cancelled
+![Conceptual stages of one model execution.](../docs/assets/execution-lifecycle.jpg)
+
+*Concept image only. The state diagram below is normative.*
+
+```mermaid
+stateDiagram-v2
+    [*] --> accepted
+    accepted --> routing
+    routing --> running: target selected
+    routing --> routing: retryable attempt failed
+    running --> succeeded: completion event
+    accepted --> cancelled
+    routing --> cancelled
+    running --> cancelled
+    routing --> failed
+    running --> failed
 ```
 
 An execution has one identifier and an append-only sequence of events. Sequence values start at one

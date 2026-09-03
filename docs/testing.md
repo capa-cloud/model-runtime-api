@@ -45,3 +45,10 @@ Secret Scanning and Push Protection remain repository-level controls.
 
 No scanner proves that prose or fixtures are safe. Review every public diff for private architecture,
 provider configuration, customer content, prices, routing weights, and local paths before push.
+
+## Documentation media checks
+
+`pnpm check:docs` validates Markdown and HTML image references, requires a provenance sidecar for
+every bitmap, caps each image at 512 KiB, and caps all documentation bitmaps at 2 MiB. Generated
+images also require manual inspection and an independent no-text image-read result. Exact technical
+relationships remain deterministic and are separately rendered with Mermaid during release review.
