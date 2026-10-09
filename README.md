@@ -65,6 +65,7 @@ The gateway owns tenant trust. The runtime owns provider execution.
 | Implement another adapter | [Adding a provider](docs/guides/adding-a-provider.md) |
 | Review protocol semantics | [Runtime model](spec/runtime-model.md), [Protocol](spec/protocol.md), and [OpenAPI](spec/openapi.yaml) |
 | Verify security and release evidence | [Threat model](docs/security/threat-model.md) and [v0.1.0 verification](docs/releases/0.1.0-verification.md) |
+| Prepare reproducible source artifacts | [Source release](docs/guides/source-release.md) and [Delivery checklist](docs/delivery.md) |
 
 ## Runtime responsibilities
 

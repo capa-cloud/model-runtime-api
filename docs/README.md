@@ -35,6 +35,7 @@
 | [Model discovery and radar](guides/model-discovery.md) | Account-visible inventories, complete polling, safe baselines and visibility signals |
 | [Scenario evaluation and recommendations](guides/scenario-evaluation.md) | Bounded assertions, private evidence, exact profiles and single-metric scenario ranking |
 | [Testing](testing.md) | Reproducible local, SDK, container, and security verification |
+| [Source release](guides/source-release.md) | Fixed-commit source archives, file digests and independent byte-for-byte verification |
 | [2026-10-09 hardening verification](releases/2026-10-09-hardening-verification.md) | Lifecycle fixes, dependency audit, regression results, and CI delivery limits |
 | [v0.1.0 verification](releases/0.1.0-verification.md) | Release gate results and explicit residual limits |
 | [v0.1.0 release notes](releases/0.1.0-notes.md) | Shipped scope, verification summary, and platform limitation |
