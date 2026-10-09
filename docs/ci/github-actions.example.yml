@@ -21,6 +21,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: 10.33.0
@@ -40,3 +42,5 @@ jobs:
       - run: pnpm audit:dependencies
       - if: matrix.node == 22
         run: docker build -t model-runtime-api:ci .
+      - if: matrix.node == 22
+        run: pnpm check:container model-runtime-api:ci

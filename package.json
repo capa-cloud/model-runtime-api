@@ -27,6 +27,7 @@
     "scan:history": "node scripts/scan-history.mjs",
     "scan:hosted": "node scripts/scan-hosted.mjs",
     "check:public-audit": "node --test scripts/public-audit.test.mjs",
+    "check:container": "node scripts/container-smoke.mjs",
     "scan:secrets": "secretlint '**/*'",
     "audit:dependencies": "pnpm audit --audit-level=moderate",
     "test": "pnpm build && vitest run",

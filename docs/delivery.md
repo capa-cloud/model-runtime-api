@@ -30,8 +30,9 @@ implementation item does not substitute for a verified release or live provider 
 
 ## Constraints
 
-The latest checkpoint is [publication audit](releases/2026-10-09-publication-audit.md):
-complete local gates, fail-closed disclosure tooling and explicit scope/identity limits.
+The latest checkpoint is [toolchain migration](releases/2026-10-09-toolchain-verification.md):
+complete local and Linux Node.js 22 gates with production-container smoke. The
+[publication audit](releases/2026-10-09-publication-audit.md) records disclosure scope/identity limits.
 [Scenario evaluation](releases/2026-10-09-evaluation-verification.md) records the focused Node.js 22
 evaluation/config/CLI evidence. The broader Node.js 22 runtime
 baseline is [bounded storage and restart recovery](releases/2026-10-09-storage-verification.md).

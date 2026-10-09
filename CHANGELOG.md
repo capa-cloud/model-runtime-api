@@ -44,6 +44,11 @@ tagged pre-alpha release.
 
 ### Maintenance
 
+- Upgrade the toolchain to TypeScript 7.0.2, Vitest 5.0.3 and Node declarations 26.6.4 with explicit
+  Node-owned package typings and fresh Node.js 22/24 compatibility evidence.
+- Exclude host-generated build artifacts from Docker context. Add an optional Git-enabled
+  verification stage and nonroot read-only production-container lifecycle smoke.
+
 - Add an isolated scenario-evaluation library/CLI, deterministic text/JSON/tool/media assertions,
   bounded cancellation and private summary reports. Synthetic fixtures are not model benchmarks.
 - Bind recommendations to fresh suite, context, execution environment, configuration and capability
