@@ -53,6 +53,22 @@ this integrated migration on the current main code. The Vitest candidate include
 5.0.3 patch. Old PR lockfiles were not blindly merged over later dependency/security changes.
 Their hosted closure is verified separately after the integrated commit is published.
 
+All three PRs were read back as `closed`, not merged, after main
+`6e2a66764cce805b8f667fe71683db4637aeba40` was published. The open-PR list was empty.
+
+## Clean-Checkout Follow-Up
+
+That exact published commit was fetched into a new local clone with no preexisting `node_modules`,
+compiled outputs or project build cache. Frozen-lockfile installation with install scripts disabled
+completed, followed by the entire `pnpm check`: 173 product tests, 16 audit tests, four protocol
+fixtures, Go/Python SDKs, types/build/schema/docs and disclosure checks passed. Index and worktree
+inventories both contained 172 files, with zero findings. The lifecycle/SDK/CLI tests exercised
+startup, real loopback HTTP/SSE and controlled shutdown from that fresh checkout.
+
+The source clone had no deployment environment or credentials. Dependency-store reuse does not
+reuse project outputs; Linux native compilation was independently checked in the earlier clean
+Docker build. The temporary clone is removed after verification; no source history is rewritten.
+
 ## Boundaries
 
 The [CI template](../ci/github-actions.example.yml) now includes production-container smoke and a

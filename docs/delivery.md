@@ -22,11 +22,11 @@ implementation item does not substitute for a verified release or live provider 
 - [x] Fresh complete local gate and Node.js 22/24 compatibility evidence (current checkpoint)
 - [ ] Complete public-content/history audit for the release candidate, including new artifacts (product-baseline scope audited; legacy identity disposition and final artifacts remain)
 - [ ] Active GitHub CI with dependency audits, container verification and required checks
-- [ ] Remaining dependency PRs resolved through compatibility evidence
+- [x] Remaining dependency PRs resolved through compatibility evidence (integrated upgrades; #2/#6/#8 closed as superseded)
 - [x] Independently runnable provider-certification harness with sanitized evidence (protocol smoke only)
 - [ ] Real-account adapter certification using authorized public-project credentials
 - [ ] Reproducible release artifacts and a new versioned release with verification evidence
-- [ ] Final documentation and cold-start installation/run check from a clean checkout
+- [x] Final documentation and cold-start installation/run check from a clean checkout (verified at current toolchain checkpoint; future release deltas must rerun)
 
 ## Constraints
 
