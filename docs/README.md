@@ -17,6 +17,7 @@
 | [Transport delivery checkpoint](releases/2026-10-09-delivery-checkpoint.md) | Transport, lifecycle, SDK and security verification evidence |
 | [Storage verification](releases/2026-10-09-storage-verification.md) | Current persistence, retention, replay, process-crash and container evidence |
 | [Capability verification](releases/2026-10-09-capability-verification.md) | Conservative declarations, configuration, no-call rejection and JSON input mapping |
+| [Discovery verification](releases/2026-10-09-discovery-verification.md) | Complete inventory paging, atomic private polling, CLI safety and fresh full local gates |
 
 ## Implement and integrate
 
@@ -28,6 +29,7 @@
 | [Adding a provider](guides/adding-a-provider.md) | Public evidence and conformance checklist |
 | [Gateway integration](guides/gateway-integration.md) | Authentication, tenant, quota, and usage boundary |
 | [Model catalog](guides/model-catalog.md) | Versioned capability snapshots and model discovery diff |
+| [Model discovery and radar](guides/model-discovery.md) | Account-visible inventories, complete polling, safe baselines and visibility signals |
 | [Testing](testing.md) | Reproducible local, SDK, container, and security verification |
 | [2026-10-09 hardening verification](releases/2026-10-09-hardening-verification.md) | Lifecycle fixes, dependency audit, regression results, and CI delivery limits |
 | [v0.1.0 verification](releases/0.1.0-verification.md) | Release gate results and explicit residual limits |

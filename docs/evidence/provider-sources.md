@@ -11,3 +11,16 @@ Observed on 2026-09-02. Adapters must update this file when their public contrac
 
 No adapter implementation may use private source code, captured customer traffic, production logs,
 undocumented credentials, or private provider configuration as evidence.
+
+## Model discovery sources
+
+Verified on 2026-10-09. These are inventory readers, not inference capability or quality evidence.
+
+| Reader | Primary source | Contract used |
+| --- | --- | --- |
+| OpenAI | [List models](https://developers.openai.com/api/reference/resources/models/methods/list) | `GET /v1/models`, model IDs and Unix creation timestamps |
+| Anthropic | [List models](https://platform.claude.com/docs/en/api/typescript/models/list) | `GET /v1/models`, `after_id` paging, `has_more`/`last_id`, IDs and creation timestamps |
+
+Owning-account fields and display names are excluded from stored projection. Creation metadata is
+not promoted to a release-date claim, and vendor capabilities are not automatically registered
+into the Runtime's provider manifest.

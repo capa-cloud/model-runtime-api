@@ -18,6 +18,7 @@
     "check:python": "PYTHONPATH=sdk/python/src python3 -m unittest discover -s sdk/python/tests -v",
     "check:sdks": "pnpm check:go && pnpm check:python",
     "dev": "pnpm --filter @model-runtime/server dev",
+    "catalog": "node packages/catalog/dist/cli.js",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "generate:schema": "pnpm --filter @model-runtime/protocol build && node scripts/generate-schema.mjs",

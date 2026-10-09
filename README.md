@@ -187,7 +187,7 @@ See [ADR-0002](docs/decisions/0002-usage-is-not-billing.md).
 | `@model-runtime/provider-*` | Mock, OpenAI Responses, Anthropic Messages, and fal Queue adapters |
 | `@model-runtime/sdk-typescript` | TypeScript HTTP/SSE client |
 | `@model-runtime/otel` | Metadata-only OpenTelemetry GenAI attribute mapping |
-| `@model-runtime/catalog` | Versioned capability snapshots and model diff |
+| `@model-runtime/catalog` | Validated capability snapshots, account-visible model discovery and visibility radar |
 | `sdk/go`, `sdk/python` | Go and Python runtime clients |
 
 Workspace package names remain private until the public API receives enough implementation feedback.

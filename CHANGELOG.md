@@ -38,6 +38,12 @@ tagged pre-alpha release.
 
 ### Maintenance
 
+- Add complete account-visible OpenAI/Anthropic inventory discovery, visibility radar, private
+  atomic polling state and a repository CLI command. Vendor metadata does not imply model release,
+  retirement, quality or inference capability. No schedules or notifications are installed.
+- Validate and canonicalize runtime catalog metadata and digests; bound reads, reject redirects,
+  and redact CLI failure output. Structurally valid legacy catalog digests remain comparable.
+
 - Add an explicit live/fixture provider smoke tool and sanitized reports. Offline certification
   tests never read real provider credentials or call public endpoints.
 
