@@ -9,6 +9,9 @@ RUN pnpm install --frozen-lockfile \
   && pnpm build \
   && pnpm --filter @model-runtime/server deploy --prod --legacy /out
 
+FROM build AS verification
+RUN apk add --no-cache git
+
 FROM node:22.22.0-alpine AS runtime
 ENV NODE_ENV=production \
     MODEL_RUNTIME_HOST=127.0.0.1 \
