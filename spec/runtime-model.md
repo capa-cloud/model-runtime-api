@@ -24,6 +24,7 @@ stateDiagram-v2
     accepted --> routing
     routing --> running: target selected
     routing --> routing: retryable attempt failed
+    running --> routing: retryable failure before output
     running --> succeeded: completion event
     accepted --> cancelled
     routing --> cancelled
@@ -57,6 +58,12 @@ The runtime owns execution routing primitives:
 - caller-declared maximum attempts constrained by a wall-clock retry budget;
 - provider-local concurrency and queue admission;
 - route-attempt evidence.
+
+`allow_fallback: false` permits only one target attempt, even when `max_attempts` is larger.
+Fallback is allowed only before any text delta, tool call, tool-argument delta, or result is exposed.
+After output begins, an error is terminal and non-retryable; partial output remains diagnostic
+evidence and must not be treated as a successful result. Progress and usage events alone do not
+commit output. Provider adapters may further restrict retries when a remote task could still run.
 
 Tenant access, commercial plans, organization budgets, and arbitrary caller-supplied routing weights
 belong to a gateway or control plane.

@@ -3,6 +3,7 @@ import {
   type ModelProvider,
   type ProviderExecutionContext,
   providerHttpError,
+  normalizeError,
   readJsonLimited,
   RuntimeError,
 } from "@model-runtime/core";
@@ -24,6 +25,7 @@ export interface FalQueueProviderOptions {
   baseUrl?: string;
   pollIntervalMs?: number;
   maxPolls?: number;
+  cancelTimeoutMs?: number;
   fetch?: typeof fetch;
   mapInput?: (request: ExecutionRequest) => Record<string, unknown>;
 }
@@ -48,6 +50,13 @@ export class FalQueueProvider implements ModelProvider {
       throw new Error("maxPolls must be a positive integer");
     }
     this.id = options.id ?? "fal";
+    if (
+      options.cancelTimeoutMs !== undefined &&
+      (!Number.isInteger(options.cancelTimeoutMs) ||
+        options.cancelTimeoutMs < 1 ||
+        options.cancelTimeoutMs > 60_000)
+    )
+      throw new Error("cancelTimeoutMs must be an integer from 1 to 60000");
     this.#options = options;
     this.#baseUrl = assertSafeBaseUrl(options.baseUrl ?? "https://queue.fal.run");
     this.#fetch = options.fetch ?? globalThis.fetch;
@@ -84,21 +93,36 @@ export class FalQueueProvider implements ModelProvider {
       headers: { authorization: `Key ${apiKey}`, "content-type": "application/json" },
       body: JSON.stringify(this.#mapInput(context.request)),
       signal: context.signal,
+    }).catch((error) => {
+      throw submittedTaskError(error);
     });
     if (!response.ok) throw await providerHttpError(response);
-    const submission = asRecord(await readJsonLimited(response));
-    const statusUrl = this.#safeFollowUrl(stringValue(submission.status_url));
-    const resultUrl = this.#safeFollowUrl(stringValue(submission.response_url));
-    const cancelUrl = this.#safeFollowUrl(stringValue(submission.cancel_url));
+    let cancelUrl: URL | undefined;
+    let remoteCompleted = false;
+    let cancelTask: Promise<void> | undefined;
     const cancel = () => {
-      void this.#fetch(cancelUrl, {
-        method: "PUT",
-        headers: { authorization: `Key ${apiKey}` },
-      }).catch(() => undefined);
+      if (!cancelUrl) return Promise.resolve();
+      const url = cancelUrl;
+      cancelTask ??= (async () => {
+        const response = await this.#fetch(url, {
+          method: "PUT",
+          headers: { authorization: `Key ${apiKey}` },
+          signal: AbortSignal.timeout(this.#options.cancelTimeoutMs ?? 5000),
+        });
+        await response.body?.cancel();
+      })();
+      return cancelTask;
     };
-    context.signal.addEventListener("abort", cancel, { once: true });
+    const onAbort = () => {
+      if (!remoteCompleted) void cancel().catch(() => undefined);
+    };
+    context.signal.addEventListener("abort", onAbort, { once: true });
 
     try {
+      const submission = asRecord(await readJsonLimited(response));
+      cancelUrl = this.#safeFollowUrl(stringValue(submission.cancel_url));
+      const statusUrl = this.#safeFollowUrl(stringValue(submission.status_url));
+      const resultUrl = this.#safeFollowUrl(stringValue(submission.response_url));
       const maxPolls = this.#options.maxPolls ?? 120;
       for (let poll = 0; poll < maxPolls; poll += 1) {
         if (context.signal.aborted) throw new RuntimeError("cancelled", "Execution was cancelled");
@@ -114,6 +138,7 @@ export class FalQueueProvider implements ModelProvider {
         } else if (value === "IN_PROGRESS") {
           yield { type: "execution.progress", phase: "processing" };
         } else if (value === "COMPLETED") {
+          remoteCompleted = true;
           if (status.error) {
             throw new RuntimeError("provider_unavailable", "fal queue execution failed", {
               retryable: false,
@@ -138,10 +163,13 @@ export class FalQueueProvider implements ModelProvider {
         await delay(this.#options.pollIntervalMs ?? 500, context.signal);
       }
       throw new RuntimeError("deadline_exceeded", "fal polling limit was reached", {
-        retryable: true,
+        retryable: false,
       });
+    } catch (error) {
+      throw submittedTaskError(error);
     } finally {
-      context.signal.removeEventListener("abort", cancel);
+      context.signal.removeEventListener("abort", onAbort);
+      if (!remoteCompleted) await cancel().catch(() => undefined);
     }
   }
 
@@ -174,6 +202,16 @@ export class FalQueueProvider implements ModelProvider {
   }
 }
 
+function submittedTaskError(error: unknown): RuntimeError {
+  const failure = normalizeError(error);
+  // Submission or cancellation may have succeeded remotely despite a local error.
+  return new RuntimeError(failure.code, failure.message, {
+    retryable: false,
+    providerCode: failure.providerCode,
+    cause: error,
+  });
+}
+
 function collectArtifacts(value: unknown, depth = 0): OutputArtifact[] {
   if (depth > 6 || value === null || value === undefined) return [];
   if (Array.isArray(value)) return value.flatMap((item) => collectArtifacts(item, depth + 1));
@@ -202,6 +240,8 @@ function deduplicate(artifacts: OutputArtifact[]): OutputArtifact[] {
 }
 
 function delay(milliseconds: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted)
+    return Promise.reject(new RuntimeError("cancelled", "Execution was cancelled"));
   return new Promise((resolve, reject) => {
     const onAbort = () => {
       clearTimeout(timer);

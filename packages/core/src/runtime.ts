@@ -188,7 +188,9 @@ export class ModelRuntime {
       }
       const fallback = request.routing?.allow_fallback ?? false;
       const requestedAttempts = request.routing?.max_attempts ?? (fallback ? candidates.length : 1);
-      const maxAttempts = Math.max(1, Math.min(requestedAttempts, candidates.length));
+      const maxAttempts = fallback
+        ? Math.max(1, Math.min(requestedAttempts, candidates.length))
+        : 1;
       const retryBudgetMs = request.routing?.retry_budget_ms;
       let lastError: RuntimeError | undefined;
 
@@ -204,6 +206,7 @@ export class ModelRuntime {
         const registered = this.#providers.get(candidate.provider.id);
         if (!registered) throw new Error("Selected provider is not registered");
         let release: (() => void) | undefined;
+        let outputStarted = false;
 
         try {
           release = await registered.gate.acquire(controller.signal);
@@ -214,6 +217,13 @@ export class ModelRuntime {
             target,
             signal: controller.signal,
           })) {
+            if (
+              providerEvent.type === "output.delta" ||
+              providerEvent.type === "output.result" ||
+              providerEvent.type === "tool.call.started" ||
+              providerEvent.type === "tool.call.arguments.delta"
+            )
+              outputStarted = true;
             if (providerEvent.type === "execution.completed") completed = true;
             else if (providerEvent.type === "usage.reported") {
               validateUsage(providerEvent.facts);
@@ -230,6 +240,14 @@ export class ModelRuntime {
           return;
         } catch (error) {
           lastError = normalizeError(error);
+          // Exposed output cannot be rolled back for streaming consumers.
+          if (outputStarted && lastError.retryable) {
+            lastError = new RuntimeError(lastError.code, lastError.message, {
+              retryable: false,
+              providerCode: lastError.providerCode,
+              cause: error,
+            });
+          }
           if (controller.signal.aborted) break;
           const budgetAvailable = !retryBudgetMs || Date.now() - routingStartedAt < retryBudgetMs;
           if (index + 1 < maxAttempts && lastError.retryable && budgetAvailable) {

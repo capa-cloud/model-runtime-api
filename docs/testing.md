@@ -5,6 +5,7 @@
 ```bash
 pnpm install --frozen-lockfile
 pnpm check
+pnpm audit:dependencies
 ```
 
 The gate runs:
@@ -23,6 +24,23 @@ Adapter tests use loopback HTTP fixture servers with fictional model, execution,
 They verify request paths, SSE or polling lifecycle, tool argument deltas, usage mapping, result
 artifacts, and terminal events. They do not use real provider credentials or call public provider
 services.
+
+Regression tests also cover partial-output fallback suppression, disabled fallback with multiple
+requested attempts, fal polling exhaustion, bounded remote cancellation, early iterator closure,
+completed-task retrieval failure, malformed lifecycle URLs, and ambiguous submission failures.
+
+## Dependency and CI gate
+
+`pnpm audit:dependencies` queries the current registry advisory database and fails for moderate or
+higher severities, including development dependencies. It is separate from the offline-compatible
+`pnpm check`. GitHub's empty alert list does not substitute for a fresh audit.
+
+The CI template in [github-actions.example.yml](ci/github-actions.example.yml) tests Node.js 22
+and 24, audits dependencies, and builds the container. It includes a weekly run to catch advisories
+without requiring new commits. Until it is installed under `.github/workflows/`, these checks are
+local evidence only; Dependabot update runs are not project CI. After activation, require both
+matrix checks before merging. Major TypeScript and Node type upgrades need a separate compatibility
+review and must not be merged solely because Dependabot opened them.
 
 ## Container check
 

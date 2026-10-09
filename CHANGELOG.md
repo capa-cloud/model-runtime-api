@@ -5,6 +5,20 @@ tagged pre-alpha release.
 
 ## Unreleased
 
+### Fixes
+
+- Prevent fallback after exposing text, tool calls, or results; partial failures are terminal and
+  non-retryable. Honor disabled fallback even when multiple attempts are requested.
+- Attempt bounded, deduplicated fal cancellation on unfinished-task exits. Suppress automatic
+  retries after accepted or ambiguous submissions to avoid duplicate remote tasks.
+
+### Maintenance
+
+- Upgrade Vitest, Biome, and YAML; constrain vulnerable fast-uri and source-map-js versions to
+  patched releases. Contributor tooling now requires Node.js 22.12 or newer.
+- Add an explicit dependency-audit command and a Node.js 22/24 CI template with weekly audits.
+- Add lifecycle and remote-task cleanup regression coverage.
+
 ### Documentation
 
 - Reorganized the English and Chinese README around audience paths, execution boundaries, provider

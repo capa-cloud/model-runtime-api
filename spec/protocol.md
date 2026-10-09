@@ -13,7 +13,7 @@ An execution request contains:
 - `input`: one or more typed parts;
 - `requirements`: capabilities that must be present before routing;
 - `routing`: bounded execution-routing preferences;
-- `deadline_ms`: total execution deadline;
+- `deadline_ms`: total execution-work deadline; bounded remote cleanup may delay the terminal event;
 - `metadata`: low-cardinality caller metadata without sensitive content;
 - `extensions`: explicitly provider-neutral extension data.
 

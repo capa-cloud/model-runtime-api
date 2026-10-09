@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { ModelRuntime } from "@model-runtime/core";
+import { ModelRuntime, RuntimeError } from "@model-runtime/core";
 import { MockProvider } from "@model-runtime/provider-mock";
-import type { RuntimeEvent } from "@model-runtime/protocol";
+import type { ProviderEvent, RuntimeEvent } from "@model-runtime/protocol";
 
 describe("ModelRuntime", () => {
   it("routes by required capability and emits a terminal event", async () => {
@@ -54,6 +54,64 @@ describe("ModelRuntime", () => {
       type: "execution.completed",
       target: { provider: "provider-second" },
     });
+  });
+
+  it.each([
+    { label: "text", events: [{ type: "output.delta", output_index: 0, delta: "partial" }] },
+    {
+      label: "tool call",
+      events: [{ type: "tool.call.started", call_id: "call-1", name: "lookup" }],
+    },
+    { label: "result", events: [{ type: "output.result", result: { partial: true } }] },
+  ] satisfies { label: string; events: ProviderEvent[] }[])(
+    "does not fall back after exposing $label output",
+    async ({ events }) => {
+      const runtime = new ModelRuntime();
+      const first = new MockProvider({ id: "provider-first" });
+      runtime.register({
+        id: first.id,
+        manifest: () => first.manifest(),
+        async *execute() {
+          yield* events;
+          throw new RuntimeError("provider_unavailable", "Synthetic stream failure", {
+            retryable: true,
+          });
+        },
+      });
+      runtime.register(new MockProvider({ id: "provider-second", chunks: ["replacement"] }));
+      const submission = await runtime.submit({
+        ability: "text-generation",
+        input: [{ type: "text", text: "fixture" }],
+        routing: { allow_fallback: true, max_attempts: 2 },
+      });
+      await runtime.waitForIdle();
+      const stored = await collect(runtime.events(submission.execution_id));
+      expect(stored.filter((event) => event.type === "route.selected")).toHaveLength(1);
+      expect(stored.at(-1)).toMatchObject({
+        type: "execution.failed",
+        error: { retryable: false },
+      });
+      expect(await runtime.get(submission.execution_id)).toMatchObject({
+        status: "failed",
+        target: { provider: "provider-first" },
+      });
+      expect(JSON.stringify(stored)).not.toContain("replacement");
+    },
+  );
+
+  it("honors disabled fallback even when multiple attempts are requested", async () => {
+    const runtime = new ModelRuntime();
+    runtime.register(new MockProvider({ id: "provider-first", failRetryably: true }));
+    runtime.register(new MockProvider({ id: "provider-second" }));
+    const events = await collect(
+      runtime.execute({
+        ability: "text-generation",
+        input: [{ type: "text", text: "fixture" }],
+        routing: { allow_fallback: false, max_attempts: 2 },
+      }),
+    );
+    expect(events.filter((event) => event.type === "route.selected")).toHaveLength(1);
+    expect(events.at(-1)?.type).toBe("execution.failed");
   });
 
   it("fails before provider output when a capability is unavailable", async () => {

@@ -46,6 +46,23 @@ or routing policy. The example uses fictional identifiers only.
   `extensions.fal.input` or a programmatic `mapInput` function.
 - Artifact URLs can expire and are not copied or made permanent by this runtime.
 
+Once submission succeeds, later errors are non-retryable. A submit transport failure is also
+non-retryable because remote acceptance is unknown. Explicit HTTP rejection before acceptance
+retains the provider HTTP retry classification.
+
+On polling exhaustion, cancellation, polling failure, or early iterator closure, the adapter
+attempts one `PUT` to the same-origin cancellation URL and waits with a separate timeout (default
+5 seconds; programmatic `cancelTimeoutMs` accepts 1 to 60000 milliseconds). Cleanup errors do not
+replace the original execution error. Invalid or unavailable lifecycle URLs may prevent cleanup.
+Already completed tasks are not cancelled, including when result retrieval fails.
+Cleanup can delay the terminal runtime event by up to the cancellation timeout after the execution
+deadline expires; it must not start another model attempt.
+
+Cancellation is best effort: queued requests can be cancelled, but requests already processing
+cannot be stopped. A local terminal state or successful cancellation HTTP response is not proof
+that remote compute stopped. See the
+[official queue cancellation contract](https://fal.ai/docs/documentation/model-apis/inference/queue#cancel-a-request).
+
 All adapters have local HTTP fixture tests. They are not live-tested with real credentials in CI.
 
 ## Shared invariants

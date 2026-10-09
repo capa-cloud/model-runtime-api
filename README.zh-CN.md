@@ -62,7 +62,7 @@ Gateway 负责租户信任，Runtime 负责 Provider 执行。
 
 ## 快速开始
 
-需要 Node.js 22+ 和 pnpm 10：
+需要 Node.js 22.12+ 和 pnpm 10：
 
 ```bash
 pnpm install
@@ -106,6 +106,7 @@ stateDiagram-v2
     accepted --> routing
     routing --> running: target selected
     routing --> routing: retryable attempt failed
+    running --> routing: retryable failure before output
     running --> succeeded: one terminal completion
     accepted --> cancelled
     routing --> cancelled
@@ -113,6 +114,9 @@ stateDiagram-v2
     routing --> failed
     running --> failed
 ```
+
+一旦输出了文本、工具调用或结果，就停止自动 fallback；失败的部分输出不能与另一个模型的答案
+拼接。fal 任务提交成功或提交结果不确定后，也不会自动重发：取消请求不能保证远端计算已经停止。
 
 每个事件都有 execution 级单调递增 sequence。消费者使用 `after` 或 `Last-Event-ID` 恢复事件流；EventStore 从 append-only 事件中物化文本、工具参数、媒体结果、Artifact 和 Usage。
 

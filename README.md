@@ -18,7 +18,7 @@
 <p align="center">
   <img alt="Release" src="https://img.shields.io/github/v/release/capa-cloud/model-runtime-api?include_prereleases">
   <img alt="License" src="https://img.shields.io/github/license/capa-cloud/model-runtime-api">
-  <img alt="Node.js" src="https://img.shields.io/badge/Node.js-22%2B-43853d">
+  <img alt="Node.js" src="https://img.shields.io/badge/Node.js-22.12%2B-43853d">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.22%2B-00ADD8">
   <img alt="Python" src="https://img.shields.io/badge/Python-3.10%2B-3776AB">
 </p>
@@ -77,7 +77,7 @@ The gateway owns tenant trust. The runtime owns provider execution.
 
 ## Quick start
 
-Requirements: Node.js 22 or later and pnpm 10.
+Requirements: Node.js 22.12 or later and pnpm 10.
 
 ```bash
 pnpm install
@@ -123,6 +123,7 @@ stateDiagram-v2
     accepted --> routing
     routing --> running: target selected
     routing --> routing: retryable attempt failed
+    running --> routing: retryable failure before output
     running --> succeeded: one terminal completion
     accepted --> cancelled
     routing --> cancelled
@@ -134,6 +135,10 @@ stateDiagram-v2
 Every event has an execution-scoped monotonic sequence. Consumers reconnect with `after` or
 `Last-Event-ID`; the EventStore materializes text, tool arguments, media results, artifacts, and usage
 from the append-only event stream.
+
+Automatic fallback stops once text, tool calls, or a result has been exposed. A failed partial
+stream is terminal; callers must not combine it with another model's answer. fal tasks also suppress
+automatic retries after acceptance because remote execution may continue despite cancellation.
 
 ## Provider adapters
 
