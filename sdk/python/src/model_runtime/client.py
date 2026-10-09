@@ -23,9 +23,10 @@ class ModelRuntimeClient:
             or parsed.username
             or parsed.password
             or parsed.fragment
+            or parsed.query
         ):
             raise ValueError("base_url must be HTTP or HTTPS without credentials or fragments")
-        self.base_url = base_url.rstrip("/")
+        self.base_url = parsed.geturl().rstrip("/")
         self.timeout = timeout
 
     def submit(
@@ -48,6 +49,8 @@ class ModelRuntimeClient:
         return self._json("POST", f"/v1/executions/{quote(execution_id, safe='')}/cancel")
 
     def events(self, execution_id: str, after: int = 0) -> Iterator[dict[str, Any]]:
+        if type(after) is not int or after < 0:
+            raise ValueError("event cursor must be a non-negative integer")
         query = urlencode({"after": after})
         request = Request(
             f"{self.base_url}/v1/executions/{quote(execution_id, safe='')}/events?{query}",
@@ -57,21 +60,28 @@ class ModelRuntimeClient:
             with urlopen(request, timeout=self.timeout) as response:
                 data: list[str] = []
                 frame_bytes = 0
-                for raw in response:
+                last_type = None
+                while True:
+                    raw = response.readline(1024 * 1024 + 1)
+                    if not raw:
+                        break
                     frame_bytes += len(raw)
                     if frame_bytes > 1024 * 1024:
                         raise RuntimeError("model runtime SSE frame exceeds 1 MiB")
                     line = raw.decode("utf-8").rstrip("\r\n")
                     if not line:
                         if data:
-                            yield json.loads("\n".join(data))
+                            event = json.loads("\n".join(data))
+                            last_type = event.get("type")
+                            yield event
                             data.clear()
                         frame_bytes = 0
                         continue
-                    if line.startswith("data: "):
-                        data.append(line[6:])
-                if data:
-                    yield json.loads("\n".join(data))
+                    if line.startswith("data:"):
+                        value = line[5:]
+                        data.append(value[1:] if value.startswith(" ") else value)
+                if last_type is not None and last_type not in ("execution.completed", "execution.failed"):
+                    raise RuntimeError("model runtime stream ended before a terminal event")
         except HTTPError as error:
             raise RuntimeHTTPError(error.code) from error
 

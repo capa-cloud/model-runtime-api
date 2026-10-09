@@ -65,6 +65,7 @@ export class OpenAiResponsesProvider implements ModelProvider {
     const requestExtension = asRecord(extension.request);
     const response = await this.#fetch(new URL("responses", withTrailingSlash(this.#baseUrl)), {
       method: "POST",
+      redirect: "error",
       headers: {
         authorization: `Bearer ${await resolveSecret(this.#apiKey)}`,
         "content-type": "application/json",

@@ -62,6 +62,7 @@ export class AnthropicMessagesProvider implements ModelProvider {
     const requestExtension = asRecord(extension.request);
     const response = await this.#fetch(new URL("v1/messages", withTrailingSlash(this.#baseUrl)), {
       method: "POST",
+      redirect: "error",
       headers: {
         "x-api-key": await resolveSecret(this.#options.apiKey),
         "anthropic-version": "2023-06-01",

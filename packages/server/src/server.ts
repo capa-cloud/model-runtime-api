@@ -1,4 +1,5 @@
 import { createServer as createNodeServer, type IncomingMessage, type Server } from "node:http";
+import { once } from "node:events";
 import { ModelRuntime, RuntimeError } from "@model-runtime/core";
 import type { ExecutionRequest } from "@model-runtime/protocol";
 
@@ -33,7 +34,7 @@ export function createReferenceServer(runtime: ModelRuntime): Server {
         }
         const submission = await runtime.submit(body, idempotencyKey);
         if (request.headers.accept?.includes("text/event-stream")) {
-          return streamEvents(response, runtime, submission.execution_id, 0);
+          return await streamEvents(response, runtime, submission.execution_id, 0);
         }
         return sendJson(response, submission.idempotent_replay ? 200 : 202, submission);
       }
@@ -61,7 +62,7 @@ export function createReferenceServer(runtime: ModelRuntime): Server {
         if (!Number.isSafeInteger(after) || after < 0) {
           throw new RuntimeError("invalid_request", "Event cursor must be a non-negative integer");
         }
-        return streamEvents(response, runtime, executionId, after);
+        return await streamEvents(response, runtime, executionId, after);
       }
 
       const resultMatch = url.pathname.match(/^\/v1\/executions\/([^/]+)\/result$/);
@@ -93,6 +94,10 @@ export function createReferenceServer(runtime: ModelRuntime): Server {
       }
       return sendJson(response, 404, { error: { code: "not_found", message: "Route not found" } });
     } catch (error) {
+      if (response.headersSent) {
+        response.destroy();
+        return;
+      }
       const runtimeError =
         error instanceof RuntimeError
           ? error
@@ -111,17 +116,23 @@ async function streamEvents(
   afterSequence: number,
 ): Promise<void> {
   const controller = new AbortController();
-  response.on("close", () => controller.abort());
+  const onClose = () => controller.abort();
+  response.once("close", onClose);
   response.writeHead(200, {
     "content-type": "text/event-stream; charset=utf-8",
     connection: "keep-alive",
   });
-  for await (const event of runtime.events(executionId, afterSequence, controller.signal)) {
-    response.write(`id: ${event.sequence}\n`);
-    response.write(`event: ${event.type}\n`);
-    response.write(`data: ${JSON.stringify(event)}\n\n`);
+  try {
+    for await (const event of runtime.events(executionId, afterSequence, controller.signal)) {
+      if (controller.signal.aborted) break;
+      const frame = `id: ${event.sequence}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
+      if (!response.write(frame)) await once(response, "drain", { signal: controller.signal });
+    }
+    if (!response.destroyed) response.end();
+  } finally {
+    response.removeListener("close", onClose);
+    controller.abort();
   }
-  response.end();
 }
 
 async function readJson(request: IncomingMessage): Promise<unknown> {

@@ -13,12 +13,15 @@
 | [Protocol](../spec/protocol.md) | Normative request, events, errors, usage, and extensions |
 | [OpenAPI](../spec/openapi.yaml) | Machine-readable HTTP surface |
 | [Roadmap](../ROADMAP.md) | Completed v0.1 scope and explicitly deferred work |
+| [Delivery checklist](delivery.md) | Current acceptance gates and remaining final-delivery work |
+| [Current delivery checkpoint](releases/2026-10-09-delivery-checkpoint.md) | Latest transport, lifecycle, SDK and security verification evidence |
 
 ## Implement and integrate
 
 | Document | Purpose |
 | --- | --- |
 | [Provider adapters](guides/provider-adapters.md) | Safe adapter configuration and provider-specific behavior |
+| [Provider smoke verification](guides/provider-certification.md) | Opt-in live protocol checks, isolated fixtures and sanitized evidence |
 | [Adding a provider](guides/adding-a-provider.md) | Public evidence and conformance checklist |
 | [Gateway integration](guides/gateway-integration.md) | Authentication, tenant, quota, and usage boundary |
 | [Model catalog](guides/model-catalog.md) | Versioned capability snapshots and model discovery diff |

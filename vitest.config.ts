@@ -4,6 +4,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   resolve: {
     alias: {
+      "@model-runtime/transport": fileURLToPath(
+        new URL("./packages/transport/src/index.ts", import.meta.url),
+      ),
       "@model-runtime/protocol": fileURLToPath(
         new URL("./packages/protocol/src/index.ts", import.meta.url),
       ),

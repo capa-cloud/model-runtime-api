@@ -217,6 +217,87 @@ describe("ModelRuntime", () => {
       code: "invalid_request",
     });
   });
+
+  it("infers required input modalities even when explicit requirements omit or hide them", async () => {
+    for (const requirements of [undefined, { input_modalities: ["text" as const] }]) {
+      const runtime = new ModelRuntime();
+      let executed = false;
+      const mock = new MockProvider();
+      runtime.register({
+        id: mock.id,
+        manifest: () => mock.manifest(),
+        async *execute(context) {
+          executed = true;
+          yield* mock.execute(context);
+        },
+      });
+      const events = await collect(
+        runtime.execute({
+          ability: "text-generation",
+          requirements,
+          input: [{ type: "image", uri: "https://media.example.test/image.png" }],
+        }),
+      );
+      expect(events.at(-1)).toMatchObject({
+        type: "execution.failed",
+        error: { code: "capability_unavailable" },
+      });
+      expect(executed).toBe(false);
+      expect(events.some((event) => event.type === "route.selected")).toBe(false);
+    }
+  });
+
+  it("does not echo caller-controlled ability text in public errors", async () => {
+    const runtime = new ModelRuntime();
+    const events = await collect(
+      runtime.execute({
+        ability: "fixture-sensitive-content",
+        input: [{ type: "text", text: "fixture" }],
+      }),
+    );
+    expect(events.at(-1)).toMatchObject({ error: { code: "capability_unavailable" } });
+    expect(JSON.stringify(events)).not.toContain("fixture-sensitive-content");
+  });
+
+  it("does not expose caller-controlled metadata keys through validation paths", async () => {
+    const runtime = new ModelRuntime();
+    try {
+      await runtime.submit({
+        ability: "text-generation",
+        input: [{ type: "text", text: "fixture" }],
+        metadata: { "fixture-sensitive-content": { nested: "fixture" } },
+      } as never);
+      throw new Error("Expected schema rejection");
+    } catch (error) {
+      expect(error).toMatchObject({ code: "invalid_request" });
+      expect(String(error)).not.toContain("fixture-sensitive-content");
+    }
+  });
+
+  it("does not mark a deadline after exposed output as automatically retryable", async () => {
+    const runtime = new ModelRuntime();
+    const mock = new MockProvider({ delayMs: 1000 });
+    runtime.register({
+      id: mock.id,
+      manifest: () => mock.manifest(),
+      async *execute(context) {
+        yield { type: "output.delta", output_index: 0, delta: "partial" } as const;
+        yield* mock.execute(context);
+      },
+    });
+    const events = await collect(
+      runtime.execute({
+        ability: "text-generation",
+        input: [{ type: "text", text: "fixture" }],
+        deadline_ms: 20,
+      }),
+    );
+    expect(events.at(-1)).toMatchObject({
+      type: "execution.failed",
+      status: "failed",
+      error: { code: "deadline_exceeded", retryable: false },
+    });
+  });
 });
 
 async function collect(iterable: AsyncIterable<RuntimeEvent>): Promise<RuntimeEvent[]> {

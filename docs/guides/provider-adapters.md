@@ -10,6 +10,11 @@ default. The reference CLI loads only the deterministic Mock Provider unless
 
 ## Safe configuration
 
+Every adapter rejects HTTP redirects. Configure the final provider endpoint explicitly; automatic
+redirects must not carry deployment credentials to another origin. fal model and lifecycle URLs
+must remain on the configured origin and must not contain URL credentials or fragments; lifecycle
+URLs also reject query strings. Base URLs reject query strings for all adapters.
+
 Copy the structure in `deploy/runtime-config.example.json` and change public model identifiers as
 needed. Configuration files reference an environment-variable name through `api_key_env`; they must
 never contain a credential value.

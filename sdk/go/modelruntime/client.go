@@ -27,7 +27,7 @@ func WithHTTPClient(client *http.Client) Option {
 
 func NewClient(baseURL string, options ...Option) (*Client, error) {
 	parsed, err := url.Parse(strings.TrimRight(baseURL, "/"))
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" {
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" || parsed.RawQuery != "" || parsed.ForceQuery {
 		return nil, errors.New("base URL must be an absolute HTTP or HTTPS URL")
 	}
 	client := &Client{baseURL: parsed, httpClient: http.DefaultClient}
@@ -43,6 +43,22 @@ type InputPart struct {
 	URI       string `json:"uri,omitempty"`
 	MediaType string `json:"media_type,omitempty"`
 	Value     any    `json:"value,omitempty"`
+}
+
+func (part InputPart) MarshalJSON() ([]byte, error) {
+	fields := map[string]any{"type": part.Type}
+	switch part.Type {
+	case "text":
+		fields["text"] = part.Text
+	case "json":
+		fields["value"] = part.Value
+	case "image", "audio", "video", "file":
+		fields["uri"] = part.URI
+		if part.MediaType != "" {
+			fields["media_type"] = part.MediaType
+		}
+	}
+	return json.Marshal(fields)
 }
 
 type ExecutionRequest struct {
@@ -101,6 +117,10 @@ func (c *Client) Events(ctx context.Context, executionID string, after int) (<-c
 	go func() {
 		defer close(events)
 		defer close(errorsCh)
+		if after < 0 {
+			errorsCh <- errors.New("event cursor must be non-negative")
+			return
+		}
 		path := "/v1/executions/" + url.PathEscape(executionID) + "/events?after=" + strconv.Itoa(after)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.resolve(path), nil)
 		if err != nil {
@@ -121,6 +141,8 @@ func (c *Client) Events(ctx context.Context, executionID string, after int) (<-c
 		scanner := bufio.NewScanner(response.Body)
 		scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 		var data strings.Builder
+		frameBytes := 0
+		var lastType string
 		flush := func() error {
 			if data.Len() == 0 {
 				return nil
@@ -131,6 +153,7 @@ func (c *Client) Events(ctx context.Context, executionID string, after int) (<-c
 				return fmt.Errorf("decode runtime event: %w", err)
 			}
 			event.Raw = append(json.RawMessage(nil), raw...)
+			lastType = event.Type
 			select {
 			case events <- event:
 				return nil
@@ -140,27 +163,33 @@ func (c *Client) Events(ctx context.Context, executionID string, after int) (<-c
 		}
 		for scanner.Scan() {
 			line := scanner.Text()
+			frameBytes += len(line) + 1
+			if frameBytes > 1024*1024 {
+				errorsCh <- errors.New("model runtime SSE frame exceeds 1 MiB")
+				return
+			}
 			if line == "" {
 				if err := flush(); err != nil {
 					errorsCh <- err
 					return
 				}
 				data.Reset()
+				frameBytes = 0
 				continue
 			}
-			if strings.HasPrefix(line, "data: ") {
+			if strings.HasPrefix(line, "data:") {
 				if data.Len() > 0 {
 					data.WriteByte('\n')
 				}
-				data.WriteString(strings.TrimPrefix(line, "data: "))
+				data.WriteString(strings.TrimPrefix(strings.TrimPrefix(line, "data:"), " "))
 			}
 		}
 		if err := scanner.Err(); err != nil {
 			errorsCh <- err
 			return
 		}
-		if err := flush(); err != nil {
-			errorsCh <- err
+		if lastType != "" && lastType != "execution.completed" && lastType != "execution.failed" {
+			errorsCh <- errors.New("model runtime stream ended before a terminal event")
 		}
 	}()
 	return events, errorsCh

@@ -7,12 +7,25 @@ tagged pre-alpha release.
 
 ### Fixes
 
+- Share bounded standards-based SSE decoding across providers and TypeScript clients; handle
+  comments, fragmented line endings/UTF-8, batched events and early response cancellation.
+- Reject provider redirects and unsafe fal model/lifecycle URLs. Sanitize CLI startup failures.
+- Respect SSE backpressure and contain asynchronous stream errors. Add orderly runtime shutdown
+  and a bounded CLI grace period.
+- Preserve required empty text and JSON null in Go requests; bound Go/Python cumulative SSE frames
+  and report streams truncated before a terminal event.
+- Infer input modality requirements before routing and avoid echoing caller-controlled ability
+  content in capability errors.
+
 - Prevent fallback after exposing text, tool calls, or results; partial failures are terminal and
   non-retryable. Honor disabled fallback even when multiple attempts are requested.
 - Attempt bounded, deduplicated fal cancellation on unfinished-task exits. Suppress automatic
   retries after accepted or ambiguous submissions to avoid duplicate remote tasks.
 
 ### Maintenance
+
+- Add an explicit live/fixture provider smoke tool and sanitized reports. Offline certification
+  tests never read real provider credentials or call public endpoints.
 
 - Upgrade Vitest, Biome, and YAML; constrain vulnerable fast-uri and source-map-js versions to
   patched releases. Contributor tooling now requires Node.js 22.12 or newer.

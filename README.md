@@ -180,6 +180,7 @@ See [ADR-0002](docs/decisions/0002-usage-is-not-billing.md).
 | Package | Responsibility |
 | --- | --- |
 | `@model-runtime/protocol` | Types, events, state, generated request schema, and usage vocabulary |
+| `@model-runtime/transport` | Shared standards-based SSE parser and bounded JSON response handling |
 | `@model-runtime/core` | Provider registry, routing, flow control, EventStore, and execution runtime |
 | `@model-runtime/server` | Loopback HTTP/SSE server and safe provider configuration |
 | `@model-runtime/conformance` | Reusable provider lifecycle assertions |

@@ -28,6 +28,21 @@ For streaming text/tool providers, the EventStore deterministically materializes
 tool argument fragments into the result snapshot. For asynchronous media providers,
 `output.result` remains the provider result and artifact references are listed separately.
 
+SSE events are dispatched only on a complete blank-line delimiter. An incomplete final frame is
+discarded. Clients report EOF after an observed nonterminal runtime event as truncation and can
+resume from their last committed sequence. An empty replay after the terminal cursor is valid.
+Closing a subscription closes its response body/watcher; execution cancellation is a separate
+command. Server projection must honor socket backpressure and contain failures after headers have
+been sent without returning another JSON response or leaking internal exception content.
+
+Routing must infer required input modalities from all input parts, in addition to explicitly
+declared requirements. Omitting a requirement or supplying a narrower list cannot make an
+unsupported modality eligible. Public errors must not echo caller-controlled ability content,
+metadata keys or validation instance paths.
+Execution deadline exhaustion is terminal and not automatically retryable: a downstream task may
+already have been accepted or produced output. A caller may explicitly choose a new request/deadline
+after assessing that ambiguity; the runtime does not silently reset the exhausted budget.
+
 ## Events
 
 Events use an execution-scoped monotonic `sequence` and timestamp.

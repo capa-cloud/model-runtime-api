@@ -31,6 +31,8 @@ export class ModelRuntime {
   readonly #executions = new Map<string, AbortController>();
   readonly #idempotency = new Map<string, IdempotencyRecord>();
   readonly #tasks = new Set<Promise<void>>();
+  readonly #submissions = new Set<Promise<ExecutionSubmission>>();
+  #closing = false;
   readonly #store: EventStore;
 
   constructor(options: { eventStore?: EventStore } = {}) {
@@ -41,6 +43,7 @@ export class ModelRuntime {
     provider: ModelProvider,
     limits?: { maxConcurrency?: number; maxQueueDepth?: number },
   ): void {
+    this.#assertOpen();
     if (this.#providers.has(provider.id))
       throw new Error(`Provider already registered: ${provider.id}`);
     this.#providers.set(provider.id, {
@@ -63,6 +66,7 @@ export class ModelRuntime {
   }
 
   async submit(request: ExecutionRequest, idempotencyKey?: string): Promise<ExecutionSubmission> {
+    this.#assertOpen();
     validateRequest(request);
     const fingerprint = fingerprintRequest(request);
     if (idempotencyKey) {
@@ -85,6 +89,7 @@ export class ModelRuntime {
     }
 
     const submission = this.#createSubmission(request);
+    this.#submissions.add(submission);
     if (idempotencyKey) this.#idempotency.set(idempotencyKey, { fingerprint, submission });
     try {
       return await submission;
@@ -93,6 +98,8 @@ export class ModelRuntime {
         this.#idempotency.delete(idempotencyKey);
       }
       throw error;
+    } finally {
+      this.#submissions.delete(submission);
     }
   }
 
@@ -102,18 +109,26 @@ export class ModelRuntime {
     const controller = new AbortController();
     await this.#store.create(executionId, createdAt);
     this.#executions.set(executionId, controller);
+    if (this.#closing) controller.abort();
     const iterator = this.#run(request, executionId, controller);
-    const first = await iterator.next();
-    if (first.value) await this.#store.append(first.value);
-    const task = this.#drain(iterator, executionId);
-    this.#tasks.add(task);
-    task.finally(() => this.#tasks.delete(task)).catch(() => undefined);
-    return {
-      execution_id: executionId,
-      status: "accepted",
-      created_at: createdAt,
-      idempotent_replay: false,
-    };
+    try {
+      const first = await iterator.next();
+      if (first.value) await this.#store.append(first.value);
+      const task = this.#drain(iterator, executionId);
+      this.#tasks.add(task);
+      task.finally(() => this.#tasks.delete(task)).catch(() => undefined);
+      return {
+        execution_id: executionId,
+        status: "accepted",
+        created_at: createdAt,
+        idempotent_replay: false,
+      };
+    } catch (error) {
+      controller.abort();
+      await iterator.return(undefined).catch(() => undefined);
+      this.#executions.delete(executionId);
+      throw error;
+    }
   }
 
   async get(executionId: string): Promise<ExecutionSnapshot | undefined> {
@@ -136,6 +151,7 @@ export class ModelRuntime {
   }
 
   async *execute(request: ExecutionRequest): AsyncGenerator<RuntimeEvent> {
+    this.#assertOpen();
     validateRequest(request);
     const executionId = randomUUID();
     const controller = new AbortController();
@@ -149,6 +165,20 @@ export class ModelRuntime {
 
   async waitForIdle(): Promise<void> {
     await Promise.all([...this.#tasks]);
+  }
+
+  async shutdown(): Promise<void> {
+    this.#closing = true;
+    for (const controller of this.#executions.values()) controller.abort();
+    await Promise.allSettled([...this.#submissions]);
+    await Promise.allSettled([...this.#tasks]);
+  }
+
+  #assertOpen(): void {
+    if (this.#closing)
+      throw new RuntimeError("provider_unavailable", "Runtime is shutting down", {
+        retryable: true,
+      });
   }
 
   async #drain(iterator: AsyncGenerator<RuntimeEvent>, executionId: string): Promise<void> {
@@ -183,7 +213,7 @@ export class ModelRuntime {
       if (candidates.length === 0) {
         throw new RuntimeError(
           "capability_unavailable",
-          `No provider satisfies ability: ${request.ability}`,
+          "No provider satisfies the requested ability and capabilities",
         );
       }
       const fallback = request.routing?.allow_fallback ?? false;
@@ -270,7 +300,7 @@ export class ModelRuntime {
         ? new RuntimeError(
             deadline.expired ? "deadline_exceeded" : "cancelled",
             deadline.expired ? "Execution deadline was exceeded" : "Execution was cancelled",
-            { retryable: deadline.expired },
+            { retryable: false },
           )
         : (lastError ??
           new RuntimeError("provider_unavailable", "Execution failed", { retryable: true }));
@@ -304,6 +334,7 @@ export class ModelRuntime {
       for (const capability of manifest.models) {
         if (
           capability.abilities.includes(request.ability) &&
+          request.input.every((part) => capability.input_modalities.includes(part.type)) &&
           satisfies(capability, request.requirements ?? {})
         ) {
           candidates.push({ provider, capability });
@@ -340,10 +371,7 @@ function satisfies(capability: ModelCapability, requirements: CapabilityRequirem
 function validateRequest(request: ExecutionRequest): void {
   const validation = validateExecutionRequest(request);
   if (!validation.valid) {
-    const detail = validation.errors
-      .map((error) => `${error.instancePath || "/"} ${error.message ?? "is invalid"}`)
-      .join("; ");
-    throw new RuntimeError("invalid_request", `Request schema validation failed: ${detail}`);
+    throw new RuntimeError("invalid_request", "Request does not match the execution schema");
   }
 }
 

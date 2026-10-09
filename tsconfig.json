@@ -1,6 +1,7 @@
 {
   "files": [],
   "references": [
+    { "path": "packages/transport" },
     { "path": "packages/protocol" },
     { "path": "packages/core" },
     { "path": "packages/provider-mock" },

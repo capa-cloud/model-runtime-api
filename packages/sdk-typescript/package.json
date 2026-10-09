@@ -8,7 +8,8 @@
   },
   "types": "./dist/index.d.ts",
   "dependencies": {
-    "@model-runtime/protocol": "workspace:*"
+    "@model-runtime/protocol": "workspace:*",
+    "@model-runtime/transport": "workspace:*"
   },
   "scripts": {
     "build": "tsc -b"

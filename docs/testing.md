@@ -15,6 +15,7 @@ The gate runs:
 - Vitest unit, lifecycle, HTTP/SSE, Adapter fixture, OTel, and catalog tests;
 - Go SDK tests;
 - Python SDK standard-library tests;
+- isolated OpenAI/Anthropic/fal protocol-smoke CLI fixtures;
 - generated Schema drift check;
 - custom public-data scan and Secretlint.
 
@@ -41,6 +42,18 @@ without requiring new commits. Until it is installed under `.github/workflows/`,
 local evidence only; Dependabot update runs are not project CI. After activation, require both
 matrix checks before merging. Major TypeScript and Node type upgrades need a separate compatibility
 review and must not be merged solely because Dependabot opened them.
+
+## Transport and process regressions
+
+Tests exercise fragmented CRLF and UTF-8, comments, optional field spaces, batched small events,
+per-event byte limits, response cancellation and nonterminal EOF. Provider-network tests use two
+local fixture origins and confirm that redirects never reach the second origin. Server tests pause
+an actual HTTP consumer and inject EventStore errors to verify backpressure and failure containment.
+
+CLI lifecycle tests launch only task-owned child processes with synthetic credentials and local
+fixture servers. They cover active-stream SIGTERM, bounded closure of incomplete HTTP requests,
+and sanitized startup failures. Go checks disable test caching for fresh gate evidence; Go/Python
+SDK regressions cover frame limits, cursors, truncation and required input values.
 
 ## Container check
 

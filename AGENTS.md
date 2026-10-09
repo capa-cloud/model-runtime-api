@@ -22,7 +22,7 @@ commit message, issue, and generated artifact as publicly visible.
 
 ## Engineering rules
 
-- Node.js 22+ and pnpm 10 are the supported toolchain.
+- Node.js 22.12+ and pnpm 10 are the supported toolchain.
 - Keep the normative contract in `spec/`; code must not silently redefine it.
 - Provider-specific behavior belongs behind the SPI or an explicit extension field.
 - Unsupported capabilities must fail explicitly before execution.

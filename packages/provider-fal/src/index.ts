@@ -88,8 +88,18 @@ export class FalQueueProvider implements ModelProvider {
       this.#options.model.replace(/^\/+/, ""),
       withTrailingSlash(this.#baseUrl),
     );
+    if (
+      submitUrl.origin !== this.#baseUrl.origin ||
+      submitUrl.username ||
+      submitUrl.password ||
+      submitUrl.search ||
+      submitUrl.hash
+    ) {
+      throw new RuntimeError("invalid_request", "fal model must remain on the configured origin");
+    }
     const response = await this.#fetch(submitUrl, {
       method: "POST",
+      redirect: "error",
       headers: { authorization: `Key ${apiKey}`, "content-type": "application/json" },
       body: JSON.stringify(this.#mapInput(context.request)),
       signal: context.signal,
@@ -106,6 +116,7 @@ export class FalQueueProvider implements ModelProvider {
       cancelTask ??= (async () => {
         const response = await this.#fetch(url, {
           method: "PUT",
+          redirect: "error",
           headers: { authorization: `Key ${apiKey}` },
           signal: AbortSignal.timeout(this.#options.cancelTimeoutMs ?? 5000),
         });
@@ -127,6 +138,7 @@ export class FalQueueProvider implements ModelProvider {
       for (let poll = 0; poll < maxPolls; poll += 1) {
         if (context.signal.aborted) throw new RuntimeError("cancelled", "Execution was cancelled");
         const statusResponse = await this.#fetch(statusUrl, {
+          redirect: "error",
           headers: { authorization: `Key ${apiKey}` },
           signal: context.signal,
         });
@@ -146,6 +158,7 @@ export class FalQueueProvider implements ModelProvider {
             });
           }
           const resultResponse = await this.#fetch(resultUrl, {
+            redirect: "error",
             headers: { authorization: `Key ${apiKey}` },
             signal: context.signal,
           });
@@ -194,7 +207,12 @@ export class FalQueueProvider implements ModelProvider {
   #safeFollowUrl(value: string): URL {
     if (!value)
       throw new RuntimeError("provider_protocol_error", "fal response omitted a lifecycle URL");
-    const url = new URL(value);
+    let url: URL;
+    try {
+      url = assertSafeBaseUrl(value);
+    } catch {
+      throw new RuntimeError("provider_protocol_error", "fal returned an unsafe lifecycle URL");
+    }
     if (url.origin !== this.#baseUrl.origin) {
       throw new RuntimeError("provider_protocol_error", "fal lifecycle URL changed origin");
     }

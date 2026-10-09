@@ -5,6 +5,7 @@ import type {
   RuntimeEvent,
   RuntimeInfo,
 } from "@model-runtime/protocol";
+import { decodeSse, readJsonBody } from "@model-runtime/transport";
 
 export interface ModelRuntimeClientOptions {
   baseUrl: string;
@@ -21,17 +22,25 @@ export class ModelRuntimeClient {
       !["http:", "https:"].includes(baseUrl.protocol) ||
       baseUrl.username ||
       baseUrl.password ||
-      baseUrl.hash
+      baseUrl.hash ||
+      baseUrl.search
     ) {
-      throw new Error("Runtime base URL must be HTTP or HTTPS without credentials or fragments");
+      throw new Error(
+        "Runtime base URL must be HTTP or HTTPS without credentials, query or fragments",
+      );
     }
+    baseUrl.search = "";
+    baseUrl.hash = "";
     this.#baseUrl = baseUrl.href.replace(/\/$/, "");
     this.#fetch = options.fetch ?? globalThis.fetch;
   }
 
   async info(): Promise<RuntimeInfo> {
     const response = await this.#fetch(`${this.#baseUrl}/v1/runtime`);
-    if (!response.ok) throw new Error(`Runtime request failed with status ${response.status}`);
+    if (!response.ok) {
+      await discard(response);
+      throw new Error(`Runtime request failed with status ${response.status}`);
+    }
     return readJsonResponse<RuntimeInfo>(response);
   }
 
@@ -50,6 +59,7 @@ export class ModelRuntimeClient {
       body: JSON.stringify(request),
     });
     if (!response.ok) {
+      await discard(response);
       throw new Error(`Runtime execution failed with status ${response.status}`);
     }
     return readJsonResponse<ExecutionSubmission>(response);
@@ -59,53 +69,44 @@ export class ModelRuntimeClient {
     const response = await this.#fetch(
       `${this.#baseUrl}/v1/executions/${encodeURIComponent(executionId)}`,
     );
-    if (response.status === 404) return undefined;
-    if (!response.ok) throw new Error(`Runtime request failed with status ${response.status}`);
+    if (response.status === 404) {
+      await discard(response);
+      return undefined;
+    }
+    if (!response.ok) {
+      await discard(response);
+      throw new Error(`Runtime request failed with status ${response.status}`);
+    }
     return readJsonResponse<ExecutionSnapshot>(response);
   }
 
   async *events(executionId: string, afterSequence = 0): AsyncGenerator<RuntimeEvent> {
+    if (!Number.isSafeInteger(afterSequence) || afterSequence < 0)
+      throw new RangeError("Event cursor must be a non-negative integer");
     const response = await this.#fetch(
       `${this.#baseUrl}/v1/executions/${encodeURIComponent(executionId)}/events?after=${afterSequence}`,
       { headers: { accept: "text/event-stream" } },
     );
     if (!response.ok || !response.body) {
+      await discard(response);
       throw new Error(`Runtime event stream failed with status ${response.status}`);
     }
 
-    const decoder = new TextDecoder();
-    const reader = response.body.getReader();
-    let buffer = "";
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
-        if (new TextEncoder().encode(buffer).byteLength > 1024 * 1024) {
-          throw new Error("Runtime SSE frame exceeds 1 MiB");
-        }
-        let boundary = buffer.indexOf("\n\n");
-        while (boundary >= 0) {
-          const frame = buffer.slice(0, boundary);
-          buffer = buffer.slice(boundary + 2);
-          const data = frame
-            .split("\n")
-            .filter((line) => line.startsWith("data: "))
-            .map((line) => line.slice(6))
-            .join("\n");
-          if (data) yield JSON.parse(data) as RuntimeEvent;
-          boundary = buffer.indexOf("\n\n");
-        }
+    let lastEvent: RuntimeEvent | undefined;
+    for await (const frame of decodeSse(response)) {
+      try {
+        lastEvent = JSON.parse(frame.data) as RuntimeEvent;
+      } catch {
+        throw new Error("Runtime returned invalid event JSON");
       }
-      buffer += decoder.decode().replace(/\r\n/g, "\n");
-      const data = buffer
-        .split("\n")
-        .filter((line) => line.startsWith("data: "))
-        .map((line) => line.slice(6))
-        .join("\n");
-      if (data) yield JSON.parse(data) as RuntimeEvent;
-    } finally {
-      reader.releaseLock();
+      yield lastEvent;
+    }
+    if (
+      lastEvent &&
+      lastEvent.type !== "execution.completed" &&
+      lastEvent.type !== "execution.failed"
+    ) {
+      throw new Error("Runtime event stream ended before a terminal event");
     }
   }
 
@@ -113,7 +114,10 @@ export class ModelRuntimeClient {
     const response = await this.#fetch(
       `${this.#baseUrl}/v1/executions/${encodeURIComponent(executionId)}/result`,
     );
-    if (!response.ok) throw new Error(`Runtime result failed with status ${response.status}`);
+    if (!response.ok) {
+      await discard(response);
+      throw new Error(`Runtime result failed with status ${response.status}`);
+    }
     return readJsonResponse<unknown>(response);
   }
 
@@ -122,6 +126,7 @@ export class ModelRuntimeClient {
       `${this.#baseUrl}/v1/executions/${encodeURIComponent(executionId)}/cancel`,
       { method: "POST" },
     );
+    await discard(response);
     if (response.status === 404) return false;
     if (!response.ok) throw new Error(`Runtime cancellation failed with status ${response.status}`);
     return true;
@@ -137,26 +142,9 @@ export type {
 } from "@model-runtime/protocol";
 
 async function readJsonResponse<T>(response: Response, maximumBytes = 4 * 1024 * 1024): Promise<T> {
-  if (!response.body) throw new Error("Runtime returned an empty response");
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > maximumBytes) throw new Error("Runtime JSON response exceeds 4 MiB");
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return JSON.parse(new TextDecoder().decode(bytes)) as T;
+  return (await readJsonBody(response, maximumBytes)) as T;
+}
+
+async function discard(response: Response): Promise<void> {
+  await response.body?.cancel().catch(() => undefined);
 }

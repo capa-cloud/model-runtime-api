@@ -1,5 +1,5 @@
 {
-  "name": "@model-runtime/core",
+  "name": "@model-runtime/transport",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,8 +8,7 @@
   },
   "types": "./dist/index.d.ts",
   "dependencies": {
-    "@model-runtime/protocol": "workspace:*",
-    "@model-runtime/transport": "workspace:*"
+    "eventsource-parser": "4.1.1"
   },
   "scripts": {
     "build": "tsc -b"

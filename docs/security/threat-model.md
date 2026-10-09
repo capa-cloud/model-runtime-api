@@ -27,6 +27,7 @@ authenticated gateway. A deployment must not infer tenant identity from caller-c
 | Threat | Required control |
 | --- | --- |
 | Credential disclosure | Environment or secret-manager injection; never include credentials in events, errors, logs, or manifests |
+| Redirect credential forwarding | All adapter requests use `redirect: error`; model/lifecycle URLs stay on the configured origin and exclude credentials/query/fragment |
 | Cross-tenant access | Gateway authorization bound to execution IDs; tenant identity stored server-side, not accepted as proof from metadata |
 | Prompt/output disclosure | Metadata-only telemetry by default; content capture requires explicit redaction and retention policy |
 | SSRF through media URIs | Adapter allowlists, scheme validation, download limits, and egress controls before dereferencing caller URIs |
@@ -36,6 +37,14 @@ authenticated gateway. A deployment must not infer tenant identity from caller-c
 | Event tampering or replay | Monotonic sequence, append-only store, authenticated durable store, and cursor validation |
 | Artifact expiry or substitution | Preserve media type and expiry; copy only through a deployment-owned validated storage path |
 | Sensitive error leakage | Portable error codes and sanitized messages; raw provider bodies stay out of public events |
+| Slow subscriber memory growth | SSE projection waits for socket drain; disconnected subscribers close their watchers |
+| Abandoned response resources | Shared transport cancels oversized or abandoned bodies; SDK streams report nonterminal EOF |
+
+Startup configuration errors are sanitized by the CLI rather than printing JSON source content.
+Request validation errors do not include user-controlled metadata keys or instance paths, and
+capability failures do not echo the requested ability value.
+The shared transport caps pending SSE characters and dispatched UTF-8 bytes separately; it does not
+claim to enforce tenant quotas, total output length or event-store retention.
 
 ## Deployment requirements
 
