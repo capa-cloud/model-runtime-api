@@ -7,3 +7,5 @@ tests
 docs
 *.log
 .env*
+.runtime-data
+*.jsonl

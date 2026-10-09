@@ -234,6 +234,7 @@ export type ProviderEvent =
     };
 
 export interface RuntimeInfo {
+  state?: "ready" | "stopping" | "unavailable";
   name: "model-runtime-api";
   protocol_version: string;
   provider_count: number;

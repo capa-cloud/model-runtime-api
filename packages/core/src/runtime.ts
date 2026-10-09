@@ -12,7 +12,7 @@ import type {
 } from "@model-runtime/protocol";
 import { protocolVersion, validateExecutionRequest } from "@model-runtime/protocol";
 import { RuntimeError, normalizeError } from "./errors.js";
-import { type EventStore, InMemoryEventStore } from "./event-store.js";
+import { type EventStore, InMemoryEventStore, type StoredIdentity } from "./event-store.js";
 import { ConcurrencyGate } from "./flow-control.js";
 import type { ModelProvider, ProviderCandidate } from "./provider.js";
 
@@ -34,9 +34,11 @@ export class ModelRuntime {
   readonly #submissions = new Set<Promise<ExecutionSubmission>>();
   #closing = false;
   readonly #store: EventStore;
+  readonly #admission: ConcurrencyGate;
 
-  constructor(options: { eventStore?: EventStore } = {}) {
+  constructor(options: { eventStore?: EventStore; maxActiveExecutions?: number } = {}) {
     this.#store = options.eventStore ?? new InMemoryEventStore();
+    this.#admission = new ConcurrencyGate(options.maxActiveExecutions ?? 16, 0);
   }
 
   register(
@@ -57,6 +59,11 @@ export class ModelRuntime {
       name: "model-runtime-api",
       protocol_version: protocolVersion,
       provider_count: this.#providers.size,
+      state: this.#closing
+        ? "stopping"
+        : this.#store.available?.() === false
+          ? "unavailable"
+          : "ready",
       features: { routing: true, flow_control: true, usage_facts: true, billing: false },
     };
   }
@@ -65,31 +72,56 @@ export class ModelRuntime {
     return Promise.all([...this.#providers.values()].map(({ provider }) => provider.manifest()));
   }
 
-  async submit(request: ExecutionRequest, idempotencyKey?: string): Promise<ExecutionSubmission> {
+  submit(request: ExecutionRequest, idempotencyKey?: string): Promise<ExecutionSubmission> {
+    const operation = this.#submit(request, idempotencyKey);
+    this.#submissions.add(operation);
+    operation.finally(() => this.#submissions.delete(operation)).catch(() => undefined);
+    return operation;
+  }
+
+  async #submit(request: ExecutionRequest, idempotencyKey?: string): Promise<ExecutionSubmission> {
     this.#assertOpen();
+    if (
+      idempotencyKey !== undefined &&
+      (typeof idempotencyKey !== "string" ||
+        idempotencyKey.length < 1 ||
+        idempotencyKey.length > 256)
+    )
+      throw new RuntimeError("invalid_request", "Invalid idempotency key length");
     validateRequest(request);
+    request = cloneRequest(request);
     const fingerprint = fingerprintRequest(request);
     if (idempotencyKey) {
       const existing = this.#idempotency.get(idempotencyKey);
       if (existing) {
-        if (existing.fingerprint !== fingerprint) {
-          throw new RuntimeError(
-            "invalid_request",
-            "Idempotency key was already used with a different request",
-          );
-        }
-        const submission = await existing.submission;
-        const snapshot = await this.#store.get(submission.execution_id);
+        return this.#replay(existing, fingerprint);
+      }
+    }
+
+    const identity = idempotencyKey
+      ? { key_hash: createHash("sha256").update(idempotencyKey).digest("hex"), fingerprint }
+      : undefined;
+    if (identity && this.#store.lookupIdentity) {
+      const claim = await this.#store.lookupIdentity(identity);
+      if (claim) {
+        const snapshot = await this.#store.get(claim.execution_id);
+        if (!snapshot)
+          throw new RuntimeError("queue_full", "Idempotent execution is no longer retained");
         return {
-          ...submission,
-          status: snapshot?.status ?? submission.status,
+          execution_id: claim.execution_id,
+          created_at: claim.created_at,
+          status: snapshot.status,
           idempotent_replay: true,
         };
       }
     }
-
-    const submission = this.#createSubmission(request);
-    this.#submissions.add(submission);
+    if (idempotencyKey) {
+      const pending = this.#idempotency.get(idempotencyKey);
+      if (pending) return this.#replay(pending, fingerprint);
+      if (!this.#store.claim && this.#idempotency.size >= 1000)
+        throw new RuntimeError("queue_full", "Legacy idempotency cache capacity exhausted");
+    }
+    const submission = this.#createSubmission(request, identity);
     if (idempotencyKey) this.#idempotency.set(idempotencyKey, { fingerprint, submission });
     try {
       return await submission;
@@ -99,15 +131,56 @@ export class ModelRuntime {
       }
       throw error;
     } finally {
-      this.#submissions.delete(submission);
+      if (
+        this.#store.claim &&
+        idempotencyKey &&
+        this.#idempotency.get(idempotencyKey)?.submission === submission
+      )
+        this.#idempotency.delete(idempotencyKey);
     }
   }
 
-  async #createSubmission(request: ExecutionRequest): Promise<ExecutionSubmission> {
+  async #replay(existing: IdempotencyRecord, fingerprint: string): Promise<ExecutionSubmission> {
+    if (existing.fingerprint !== fingerprint)
+      throw new RuntimeError(
+        "invalid_request",
+        "Idempotency key was already used with a different request",
+      );
+    const submission = await existing.submission;
+    const snapshot = await this.#store.get(submission.execution_id);
+    if (!snapshot)
+      throw new RuntimeError("queue_full", "Idempotent execution is no longer retained");
+    return { ...submission, status: snapshot.status, idempotent_replay: true };
+  }
+
+  async #createSubmission(
+    request: ExecutionRequest,
+    identity?: StoredIdentity,
+  ): Promise<ExecutionSubmission> {
     const executionId = randomUUID();
     const createdAt = new Date().toISOString();
     const controller = new AbortController();
-    await this.#store.create(executionId, createdAt);
+    const release = await this.#admission.acquire();
+    try {
+      if (identity && this.#store.claim) {
+        const claim = await this.#store.claim(executionId, createdAt, identity);
+        if (claim.replay) {
+          release();
+          const snapshot = await this.#store.get(claim.execution_id);
+          if (!snapshot)
+            throw new RuntimeError("internal_error", "Claimed execution is unavailable");
+          return {
+            execution_id: claim.execution_id,
+            created_at: claim.created_at,
+            status: snapshot.status,
+            idempotent_replay: true,
+          };
+        }
+      } else await this.#store.create(executionId, createdAt);
+    } catch (error) {
+      release();
+      throw error;
+    }
     this.#executions.set(executionId, controller);
     if (this.#closing) controller.abort();
     const iterator = this.#run(request, executionId, controller);
@@ -116,7 +189,12 @@ export class ModelRuntime {
       if (first.value) await this.#store.append(first.value);
       const task = this.#drain(iterator, executionId);
       this.#tasks.add(task);
-      task.finally(() => this.#tasks.delete(task)).catch(() => undefined);
+      task
+        .finally(() => {
+          this.#tasks.delete(task);
+          release();
+        })
+        .catch(() => undefined);
       return {
         execution_id: executionId,
         status: "accepted",
@@ -127,6 +205,8 @@ export class ModelRuntime {
       controller.abort();
       await iterator.return(undefined).catch(() => undefined);
       this.#executions.delete(executionId);
+      release();
+      await this.#store.discard?.(executionId).catch(() => undefined);
       throw error;
     }
   }
@@ -153,13 +233,17 @@ export class ModelRuntime {
   async *execute(request: ExecutionRequest): AsyncGenerator<RuntimeEvent> {
     this.#assertOpen();
     validateRequest(request);
+    request = cloneRequest(request);
     const executionId = randomUUID();
     const controller = new AbortController();
+    const release = await this.#admission.acquire();
     this.#executions.set(executionId, controller);
+    if (this.#closing) controller.abort();
     try {
       yield* this.#run(request, executionId, controller);
     } finally {
       this.#executions.delete(executionId);
+      release();
     }
   }
 
@@ -174,6 +258,11 @@ export class ModelRuntime {
     await Promise.allSettled([...this.#tasks]);
   }
 
+  async close(): Promise<void> {
+    await this.shutdown();
+    await this.#store.close?.();
+  }
+
   #assertOpen(): void {
     if (this.#closing)
       throw new RuntimeError("provider_unavailable", "Runtime is shutting down", {
@@ -184,6 +273,23 @@ export class ModelRuntime {
   async #drain(iterator: AsyncGenerator<RuntimeEvent>, executionId: string): Promise<void> {
     try {
       for await (const event of iterator) await this.#store.append(event);
+    } catch (error) {
+      this.#executions.get(executionId)?.abort();
+      const snapshot = await this.#store.get(executionId);
+      if (snapshot && !["succeeded", "failed", "cancelled"].includes(snapshot.status)) {
+        const failure =
+          error instanceof RuntimeError
+            ? error
+            : new RuntimeError("internal_error", "Execution event storage failed");
+        await this.#store.append({
+          type: "execution.failed",
+          status: "failed",
+          execution_id: executionId,
+          sequence: snapshot.last_sequence + 1,
+          time: new Date().toISOString(),
+          error: failure.toShape(),
+        });
+      }
     } finally {
       this.#executions.delete(executionId);
     }
@@ -254,8 +360,10 @@ export class ModelRuntime {
               providerEvent.type === "tool.call.arguments.delta"
             )
               outputStarted = true;
-            if (providerEvent.type === "execution.completed") completed = true;
-            else if (providerEvent.type === "usage.reported") {
+            if (providerEvent.type === "execution.completed") {
+              completed = true;
+              break;
+            } else if (providerEvent.type === "usage.reported") {
               validateUsage(providerEvent.facts);
               yield event({ ...providerEvent, status: "running" });
             } else yield event({ ...providerEvent, status: "running" });
@@ -372,6 +480,18 @@ function validateRequest(request: ExecutionRequest): void {
   const validation = validateExecutionRequest(request);
   if (!validation.valid) {
     throw new RuntimeError("invalid_request", "Request does not match the execution schema");
+  }
+}
+
+function cloneRequest(request: ExecutionRequest): ExecutionRequest {
+  try {
+    const value = JSON.stringify(request);
+    if (Buffer.byteLength(value) > 1024 * 1024) throw new Error("Request limit");
+    const copy = JSON.parse(value) as ExecutionRequest;
+    validateRequest(copy);
+    return copy;
+  } catch {
+    throw new RuntimeError("invalid_request", "Request must be bounded JSON data");
   }
 }
 

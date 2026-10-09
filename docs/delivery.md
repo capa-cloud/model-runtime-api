@@ -12,7 +12,7 @@ implementation item does not substitute for a verified release or live provider 
 - [x] Provider credentials cannot follow redirects to an unconfigured destination
 - [x] Server streaming respects backpressure and contains asynchronous failures
 - [x] Orderly shutdown cancels active work and closes streams within a bounded grace period
-- [ ] Resource retention and restart/recovery behavior are explicit and validated
+- [x] Resource retention and restart/recovery behavior are explicit and validated (local single-writer profile)
 - [ ] Provider capability claims and configuration match supported behavior
 - [ ] Model discovery/radar and scenario-evaluation workflows are runnable and documented
 
@@ -29,7 +29,7 @@ implementation item does not substitute for a verified release or live provider 
 
 ## Constraints
 
-The latest verified checkpoint is [transport and lifecycle hardening](releases/2026-10-09-delivery-checkpoint.md).
+The latest verified checkpoint is [bounded storage and restart recovery](releases/2026-10-09-storage-verification.md).
 Future runtime changes must rerun the relevant gates before these results support a release.
 
 The reference runtime remains behind an authenticated gateway or on loopback. Tenant management,

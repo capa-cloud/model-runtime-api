@@ -192,6 +192,12 @@ See [ADR-0002](docs/decisions/0002-usage-is-not-billing.md).
 
 Workspace package names remain private until the public API receives enough implementation feedback.
 
+The optional [encrypted file store](docs/guides/event-storage.md) retains results, SSE cursors and
+idempotency across restart. Interrupted work is marked failed with an unknown remote outcome;
+recovery does not automatically repeat provider calls. The default memory store has explicit
+capacity/retention limits. Durable storage requires a private writable volume and a dedicated
+encryption key supplied by environment-variable name.
+
 ## Deployment and security
 
 ```bash

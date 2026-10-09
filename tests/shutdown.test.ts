@@ -35,6 +35,7 @@ describe("runtime shutdown", () => {
     const runtime = new ModelRuntime({ eventStore: new SlowStore() });
     runtime.register(new MockProvider());
     const submission = runtime.submit(request);
+    await expect.poll(() => typeof release).toBe("function");
     let finished = false;
     const stopping = runtime.shutdown().then(() => {
       finished = true;

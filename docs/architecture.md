@@ -74,6 +74,9 @@ runtime sequence numbers, routing policy, tenant identity, or billing.
 Every event has an execution-scoped, contiguous sequence. Event consumers reconnect with `after` or
 `Last-Event-ID`. The bundled memory store recovers only within one process; a durable production
 store must implement the same EventStore SPI and protect tenant ownership outside the public core.
+The opt-in encrypted file implementation adds local single-writer durability, identity replay and
+conservative interrupted-work recovery; see [storage](guides/event-storage.md). Active subscriptions
+pin their retained history, and replay rechecks the cursor before ending on a terminal snapshot.
 
 ## Configuration and credentials
 

@@ -45,6 +45,7 @@ const shutdown = async () => {
     await runtime.shutdown();
     server.closeIdleConnections();
     await closed;
+    await runtime.close();
   } finally {
     clearTimeout(timeout);
   }

@@ -1,0 +1,15 @@
+{
+  "max_active_executions": 16,
+  "event_store": {
+    "type": "file",
+    "directory": "/var/lib/model-runtime/events",
+    "encryption_key_env": "MODEL_RUNTIME_EVENT_STORE_KEY",
+    "max_executions": 1000,
+    "max_bytes": 67108864,
+    "max_execution_bytes": 4194304,
+    "max_events": 4096,
+    "retention_ms": 86400000,
+    "max_disk_bytes": 268435456
+  },
+  "providers": [{ "type": "mock" }]
+}

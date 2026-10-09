@@ -10,9 +10,10 @@ export function createReferenceServer(runtime: ModelRuntime): Server {
     response.setHeader("x-content-type-options", "nosniff");
     response.setHeader("cache-control", "no-store");
     try {
-      const url = new URL(request.url ?? "/", "http://runtime.local");
+      const url = parseUrl(request.url ?? "/");
       if (request.method === "GET" && url.pathname === "/v1/runtime") {
-        return sendJson(response, 200, runtime.info());
+        const info = runtime.info();
+        return sendJson(response, info.state === "ready" ? 200 : 503, info);
       }
       if (request.method === "GET" && url.pathname === "/v1/providers") {
         return sendJson(response, 200, { data: await runtime.manifests() });
@@ -41,7 +42,7 @@ export function createReferenceServer(runtime: ModelRuntime): Server {
 
       const executionMatch = url.pathname.match(/^\/v1\/executions\/([^/]+)$/);
       if (request.method === "GET" && executionMatch?.[1]) {
-        const snapshot = await runtime.get(decodeURIComponent(executionMatch[1]));
+        const snapshot = await runtime.get(decodeId(executionMatch[1]));
         return snapshot
           ? sendJson(response, 200, snapshot)
           : sendJson(response, 404, {
@@ -51,7 +52,7 @@ export function createReferenceServer(runtime: ModelRuntime): Server {
 
       const eventsMatch = url.pathname.match(/^\/v1\/executions\/([^/]+)\/events$/);
       if (request.method === "GET" && eventsMatch?.[1]) {
-        const executionId = decodeURIComponent(eventsMatch[1]);
+        const executionId = decodeId(eventsMatch[1]);
         if (!(await runtime.get(executionId))) {
           return sendJson(response, 404, {
             error: { code: "not_found", message: "Execution not found" },
@@ -67,7 +68,7 @@ export function createReferenceServer(runtime: ModelRuntime): Server {
 
       const resultMatch = url.pathname.match(/^\/v1\/executions\/([^/]+)\/result$/);
       if (request.method === "GET" && resultMatch?.[1]) {
-        const snapshot = await runtime.get(decodeURIComponent(resultMatch[1]));
+        const snapshot = await runtime.get(decodeId(resultMatch[1]));
         if (!snapshot) {
           return sendJson(response, 404, {
             error: { code: "not_found", message: "Execution not found" },
@@ -87,21 +88,21 @@ export function createReferenceServer(runtime: ModelRuntime): Server {
 
       const cancelMatch = url.pathname.match(/^\/v1\/executions\/([^/]+)\/cancel$/);
       if (request.method === "POST" && cancelMatch?.[1]) {
-        const cancelled = runtime.cancel(decodeURIComponent(cancelMatch[1]));
+        const cancelled = runtime.cancel(decodeId(cancelMatch[1]));
         return sendJson(response, cancelled ? 202 : 404, {
           status: cancelled ? "cancellation_requested" : "not_found",
         });
       }
       return sendJson(response, 404, { error: { code: "not_found", message: "Route not found" } });
     } catch (error) {
-      if (response.headersSent) {
+      if (response.headersSent || response.destroyed) {
         response.destroy();
         return;
       }
       const runtimeError =
         error instanceof RuntimeError
           ? error
-          : new RuntimeError("invalid_request", "Request could not be processed", { cause: error });
+          : new RuntimeError("internal_error", "Runtime request could not be completed");
       return sendJson(response, runtimeError.code === "invalid_request" ? 400 : 500, {
         error: runtimeError.toShape(),
       });
@@ -164,4 +165,19 @@ function sendJson(
 
 function singleHeader(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function parseUrl(value: string): URL {
+  try {
+    return new URL(value, "http://runtime.local");
+  } catch {
+    throw new RuntimeError("invalid_request", "Invalid request URL");
+  }
+}
+function decodeId(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    throw new RuntimeError("invalid_request", "Invalid execution ID encoding");
+  }
 }

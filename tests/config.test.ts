@@ -36,6 +36,16 @@ describe("runtime provider configuration", () => {
     });
     await expect(runtimeFromConfig(path)).rejects.toThrow("HTTPS or loopback HTTP");
   });
+
+  it("rejects inline store keys, unknown top-level fields and invalid resource settings", async () => {
+    for (const value of [
+      { providers: [{ type: "mock" }], event_store: { type: "file", encryption_key: "fixture" } },
+      { providers: [{ type: "mock" }], unsafe_field: "fixture" },
+      { providers: [{ type: "mock" }], max_active_executions: 0 },
+      { providers: [{ type: "mock" }], event_store: { type: "memory", directory: "fixture" } },
+    ])
+      await expect(runtimeFromConfig(await fixture(value))).rejects.toThrow();
+  });
 });
 
 async function fixture(value: unknown): Promise<string> {

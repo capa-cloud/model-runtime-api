@@ -15,6 +15,7 @@
 | [Roadmap](../ROADMAP.md) | Completed v0.1 scope and explicitly deferred work |
 | [Delivery checklist](delivery.md) | Current acceptance gates and remaining final-delivery work |
 | [Current delivery checkpoint](releases/2026-10-09-delivery-checkpoint.md) | Latest transport, lifecycle, SDK and security verification evidence |
+| [Storage verification](releases/2026-10-09-storage-verification.md) | Current persistence, retention, replay, process-crash and container evidence |
 
 ## Implement and integrate
 
@@ -22,6 +23,7 @@
 | --- | --- |
 | [Provider adapters](guides/provider-adapters.md) | Safe adapter configuration and provider-specific behavior |
 | [Provider smoke verification](guides/provider-certification.md) | Opt-in live protocol checks, isolated fixtures and sanitized evidence |
+| [Event storage and recovery](guides/event-storage.md) | Bounded memory, encrypted journals, durable identity, retention and restart semantics |
 | [Adding a provider](guides/adding-a-provider.md) | Public evidence and conformance checklist |
 | [Gateway integration](guides/gateway-integration.md) | Authentication, tenant, quota, and usage boundary |
 | [Model catalog](guides/model-catalog.md) | Versioned capability snapshots and model discovery diff |

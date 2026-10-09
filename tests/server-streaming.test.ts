@@ -36,6 +36,26 @@ async function serve(store: InMemoryEventStore): Promise<string> {
 }
 
 describe("reference server streaming lifecycle", () => {
+  it("maps storage failures to sanitized server errors and reports unavailable storage", async () => {
+    class BrokenStore extends InMemoryEventStore {
+      override async get(): Promise<never> {
+        throw new Error("fixture-sensitive-content");
+      }
+      override available(): boolean {
+        return false;
+      }
+    }
+    const base = await serve(new BrokenStore());
+    const response = await fetch(`${base}/v1/executions/fixture`);
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body.error.code).toBe("internal_error");
+    expect(JSON.stringify(body)).not.toContain("fixture-sensitive-content");
+    const health = await fetch(`${base}/v1/runtime`);
+    expect(health.status).toBe(503);
+    expect(await health.json()).toMatchObject({ state: "unavailable" });
+    expect((await fetch(`${base}/v1/executions/%ZZ`)).status).toBe(400);
+  });
   it("contains a failing EventStore stream and remains available", async () => {
     class FailingStore extends InMemoryEventStore {
       override async *watch(): AsyncGenerator<RuntimeEvent> {

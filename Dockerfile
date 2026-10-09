@@ -15,6 +15,9 @@ ENV NODE_ENV=production \
     MODEL_RUNTIME_PORT=4320
 WORKDIR /app
 RUN addgroup -S runtime && adduser -S runtime -G runtime
+RUN mkdir -p /var/lib/model-runtime \
+  && chown runtime:runtime /var/lib/model-runtime \
+  && chmod 700 /var/lib/model-runtime
 COPY --from=build --chown=runtime:runtime /out ./
 USER runtime
 EXPOSE 4320

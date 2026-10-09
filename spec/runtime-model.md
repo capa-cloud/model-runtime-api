@@ -91,7 +91,15 @@ The reference server is a protocol development tool, not a production gateway.
 
 ## Storage and recovery
 
-The core depends on an EventStore SPI. The bundled in-memory implementation supports append-only
-events, materialized status/result, and resumable cursors within one process. Production durability,
-cross-instance coordination, retention, encryption, and backup belong to a deployment-specific
-EventStore implementation.
+The core depends on an EventStore SPI. The bounded memory implementation supports append-only
+events, materialized status/result and resumable cursors within one process. The optional encrypted
+file store provides synchronized journals, durable idempotency and event/result replay for one
+writer on a local filesystem. Interrupted work becomes a non-retryable failure with an unknown
+remote outcome; recovery never resubmits provider work. Terminal records and their identities expire
+together under capacity/retention policy. Cross-instance coordination, network storage, key rotation
+and backup lifecycle still require a deployment-owned implementation or procedure.
+
+Runtime metadata includes optional `state` (`ready`, `stopping`, `unavailable`); the reference server
+returns `503` when admission is stopping or event storage has failed. Infrastructure exceptions map
+to sanitized `internal_error` responses, not caller validation errors. Storage ownership is released
+only after producers and subscribers are drained.

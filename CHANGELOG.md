@@ -7,6 +7,12 @@ tagged pre-alpha release.
 
 ### Fixes
 
+- Add bounded memory retention and opt-in AES-256-GCM event journals with atomic idempotency claims,
+  synchronized writes, single-writer ownership and conservative restart recovery.
+- Bound active execution admission, copy request data before asynchronous routing, and preserve
+  terminal failure evidence on event-capacity exhaustion. Provider completion stops stream consumption.
+- Report storage failures as sanitized server errors and expose unavailable/stopping readiness.
+
 - Share bounded standards-based SSE decoding across providers and TypeScript clients; handle
   comments, fragmented line endings/UTF-8, batched events and early response cancellation.
 - Reject provider redirects and unsafe fal model/lifecycle URLs. Sanitize CLI startup failures.

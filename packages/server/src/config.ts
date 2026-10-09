@@ -1,5 +1,12 @@
 import { readFile } from "node:fs/promises";
-import { ModelRuntime, RuntimeError } from "@model-runtime/core";
+import {
+  ModelRuntime,
+  RuntimeError,
+  InMemoryEventStore,
+  FileEventStore,
+  assertSafeBaseUrl,
+  type EventStoreLimits,
+} from "@model-runtime/core";
 import { AnthropicMessagesProvider } from "@model-runtime/provider-anthropic";
 import { FalQueueProvider } from "@model-runtime/provider-fal";
 import { MockProvider } from "@model-runtime/provider-mock";
@@ -34,59 +41,102 @@ type ProviderConfig =
 
 interface RuntimeConfig {
   providers: ProviderConfig[];
+  max_active_executions?: number;
+  event_store?: {
+    type: "memory" | "file";
+    directory?: string;
+    encryption_key_env?: string;
+    max_executions?: number;
+    max_bytes?: number;
+    max_execution_bytes?: number;
+    max_events?: number;
+    retention_ms?: number;
+    max_disk_bytes?: number;
+  };
 }
 
 export async function runtimeFromConfig(path?: string): Promise<ModelRuntime> {
-  const runtime = new ModelRuntime();
   if (!path) {
+    const runtime = new ModelRuntime();
     runtime.register(new MockProvider(), { maxConcurrency: 4, maxQueueDepth: 8 });
     return runtime;
   }
   const config = validateConfig(JSON.parse(await readFile(path, "utf8")));
-  for (const provider of config.providers) {
-    if (provider.type === "mock") {
-      runtime.register(
-        new MockProvider({ id: provider.id, model: provider.model, abilities: provider.abilities }),
-      );
-      continue;
+  const limits: EventStoreLimits = {
+    maxExecutions: config.event_store?.max_executions,
+    maxBytes: config.event_store?.max_bytes,
+    maxExecutionBytes: config.event_store?.max_execution_bytes,
+    maxEvents: config.event_store?.max_events,
+    retentionMs: config.event_store?.retention_ms,
+  };
+  let eventStore: InMemoryEventStore;
+  if (config.event_store?.type === "file") {
+    const encoded = secretResolver(config.event_store.encryption_key_env!)();
+    if (!/^[A-Za-z0-9+/]{43}=$/.test(encoded)) throw new Error("Invalid store key encoding");
+    eventStore = await FileEventStore.open({
+      ...limits,
+      directory: config.event_store.directory!,
+      encryptionKey: Buffer.from(encoded, "base64"),
+      maxDiskBytes: config.event_store.max_disk_bytes,
+    });
+  } else eventStore = new InMemoryEventStore(limits);
+  const runtime = new ModelRuntime({
+    eventStore,
+    maxActiveExecutions: config.max_active_executions,
+  });
+  try {
+    for (const provider of config.providers) {
+      if (provider.type === "mock") {
+        runtime.register(
+          new MockProvider({
+            id: provider.id,
+            model: provider.model,
+            abilities: provider.abilities,
+          }),
+        );
+        continue;
+      }
+      const apiKey = secretResolver(provider.api_key_env);
+      if (provider.type === "openai-responses") {
+        runtime.register(
+          new OpenAiResponsesProvider({
+            id: provider.id,
+            model: provider.model,
+            abilities: provider.abilities,
+            apiKey,
+            baseUrl: provider.base_url,
+          }),
+        );
+      } else if (provider.type === "anthropic-messages") {
+        runtime.register(
+          new AnthropicMessagesProvider({
+            id: provider.id,
+            model: provider.model,
+            abilities: provider.abilities,
+            apiKey,
+            baseUrl: provider.base_url,
+          }),
+        );
+      } else if (provider.type === "fal-queue") {
+        runtime.register(
+          new FalQueueProvider({
+            id: provider.id,
+            model: provider.model,
+            ability: provider.ability,
+            apiKey,
+            baseUrl: provider.base_url,
+          }),
+        );
+      } else {
+        const exhaustive: never = provider;
+        throw new Error(`Unsupported provider configuration: ${String(exhaustive)}`);
+      }
     }
-    const apiKey = secretResolver(provider.api_key_env);
-    if (provider.type === "openai-responses") {
-      runtime.register(
-        new OpenAiResponsesProvider({
-          id: provider.id,
-          model: provider.model,
-          abilities: provider.abilities,
-          apiKey,
-          baseUrl: provider.base_url,
-        }),
-      );
-    } else if (provider.type === "anthropic-messages") {
-      runtime.register(
-        new AnthropicMessagesProvider({
-          id: provider.id,
-          model: provider.model,
-          abilities: provider.abilities,
-          apiKey,
-          baseUrl: provider.base_url,
-        }),
-      );
-    } else if (provider.type === "fal-queue") {
-      runtime.register(
-        new FalQueueProvider({
-          id: provider.id,
-          model: provider.model,
-          ability: provider.ability,
-          apiKey,
-          baseUrl: provider.base_url,
-        }),
-      );
-    } else {
-      const exhaustive: never = provider;
-      throw new Error(`Unsupported provider configuration: ${String(exhaustive)}`);
-    }
+    return runtime;
+  } catch (error) {
+    await runtime.close();
+    throw error;
   }
-  return runtime;
 }
 
 function secretResolver(name: string): () => string {
@@ -105,6 +155,62 @@ function secretResolver(name: string): () => string {
 function validateConfig(value: unknown): RuntimeConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Runtime config must be an object");
+  }
+  const root = value as Record<string, unknown>;
+  if (
+    Object.keys(root).some(
+      (key) => !["providers", "max_active_executions", "event_store"].includes(key),
+    )
+  )
+    throw new Error("Unsupported runtime config field");
+  if (root.max_active_executions !== undefined) positiveInteger(root.max_active_executions);
+  if (root.event_store !== undefined) {
+    if (
+      !root.event_store ||
+      typeof root.event_store !== "object" ||
+      Array.isArray(root.event_store)
+    )
+      throw new Error("Invalid event store config");
+    const store = root.event_store as Record<string, unknown>;
+    if (
+      !["memory", "file"].includes(String(store.type)) ||
+      Object.keys(store).some(
+        (key) =>
+          ![
+            "type",
+            "directory",
+            "encryption_key_env",
+            "max_executions",
+            "max_bytes",
+            "max_execution_bytes",
+            "max_events",
+            "retention_ms",
+            "max_disk_bytes",
+          ].includes(key),
+      )
+    )
+      throw new Error("Invalid event store fields");
+    if (
+      store.type === "file" &&
+      (typeof store.directory !== "string" ||
+        !store.directory ||
+        typeof store.encryption_key_env !== "string")
+    )
+      throw new Error("File event store requires a directory and key environment name");
+    if (
+      store.type === "memory" &&
+      ["directory", "encryption_key_env", "max_disk_bytes"].some((key) => store[key] !== undefined)
+    )
+      throw new Error("Memory store contains file-only settings");
+    for (const key of [
+      "max_executions",
+      "max_bytes",
+      "max_execution_bytes",
+      "max_events",
+      "retention_ms",
+      "max_disk_bytes",
+    ])
+      if (store[key] !== undefined) positiveInteger(store[key]);
   }
   const providers = (value as { providers?: unknown }).providers;
   if (!Array.isArray(providers) || providers.length === 0) {
@@ -128,6 +234,22 @@ function validateConfig(value: unknown): RuntimeConfig {
     if (Object.keys(record).some((key) => !allowedFields.has(key))) {
       throw new Error("Provider config contains an unsupported or unsafe field");
     }
+    for (const key of ["id", "model", "ability"]) {
+      if (
+        record[key] !== undefined &&
+        (typeof record[key] !== "string" ||
+          !(record[key] as string).length ||
+          (record[key] as string).length > 256)
+      )
+        throw new Error("Provider identifiers must be bounded strings");
+    }
+    if (
+      record.abilities !== undefined &&
+      (!Array.isArray(record.abilities) ||
+        record.abilities.length < 1 ||
+        record.abilities.some((value) => typeof value !== "string" || !value || value.length > 256))
+    )
+      throw new Error("Invalid provider abilities");
     if (record.type !== "mock") {
       if (typeof record.model !== "string" || record.model.length === 0) {
         throw new Error("Provider config requires a non-empty model");
@@ -141,12 +263,13 @@ function validateConfig(value: unknown): RuntimeConfig {
     }
     if (record.base_url !== undefined) {
       if (typeof record.base_url !== "string") throw new Error("base_url must be a string");
-      const base = new URL(record.base_url);
-      const loopback = ["127.0.0.1", "localhost", "::1"].includes(base.hostname);
-      if (base.protocol !== "https:" && !(loopback && base.protocol === "http:")) {
-        throw new Error("base_url must be HTTPS or loopback HTTP");
-      }
+      assertSafeBaseUrl(record.base_url);
     }
   }
-  return { providers: providers as ProviderConfig[] };
+  return { ...root, providers: providers as ProviderConfig[] } as unknown as RuntimeConfig;
+}
+
+function positiveInteger(value: unknown): void {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1)
+    throw new Error("Runtime limits must be positive integers");
 }

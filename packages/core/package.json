@@ -9,7 +9,11 @@
   "types": "./dist/index.d.ts",
   "dependencies": {
     "@model-runtime/protocol": "workspace:*",
-    "@model-runtime/transport": "workspace:*"
+    "@model-runtime/transport": "workspace:*",
+    "proper-lockfile": "4.1.2"
+  },
+  "devDependencies": {
+    "@types/proper-lockfile": "4.1.4"
   },
   "scripts": {
     "build": "tsc -b"

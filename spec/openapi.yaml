@@ -17,6 +17,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RuntimeInfo"
+        "503":
+          description: Runtime is stopping or event storage is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuntimeInfo"
   /v1/providers:
     get:
       operationId: listProviders
@@ -149,6 +155,9 @@ components:
         provider_count:
           type: integer
           minimum: 0
+        state:
+          type: string
+          enum: [ready, stopping, unavailable]
         features:
           type: object
           required: [routing, flow_control, usage_facts, billing]
