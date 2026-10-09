@@ -15,6 +15,9 @@ importers:
       '@biomejs/biome':
         specifier: 2.5.13
         version: 2.5.13
+      '@secretlint/node':
+        specifier: 13.0.5
+        version: 13.0.5
       '@secretlint/secretlint-rule-preset-recommend':
         specifier: 13.0.5
         version: 13.0.5

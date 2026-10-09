@@ -19,6 +19,7 @@
 | [Capability verification](releases/2026-10-09-capability-verification.md) | Conservative declarations, configuration, no-call rejection and JSON input mapping |
 | [Discovery verification](releases/2026-10-09-discovery-verification.md) | Complete inventory paging, atomic private polling, CLI safety and fresh full local gates |
 | [Evaluation verification](releases/2026-10-09-evaluation-verification.md) | Bounded scenario checks, profile binding, advisory recommendations and fresh test evidence |
+| [Publication audit verification](releases/2026-10-09-publication-audit.md) | Reachable Git/hosted/media scope, fail-closed scanner fixes and explicit legacy identity warnings |
 
 ## Implement and integrate
 
@@ -45,6 +46,7 @@
 | [Provider evidence](evidence/provider-sources.md) | Dated public sources used by clean-room adapters |
 | [Security policy](../SECURITY.md) | Vulnerability reporting and supported security boundary |
 | [Public contribution policy](../CONTRIBUTING.md) | Data safety, compatibility, and verification requirements |
+| [Publication audit](security/publication-audit.md) | Staged/current/history/hosted disclosure coverage, private policies and failure semantics |
 
 ## Decisions
 

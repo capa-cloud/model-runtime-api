@@ -20,7 +20,7 @@ implementation item does not substitute for a verified release or live provider 
 ## Verification and publication
 
 - [x] Fresh complete local gate and Node.js 22/24 compatibility evidence (current checkpoint)
-- [ ] Complete public-content/history audit for the release candidate, including new artifacts
+- [ ] Complete public-content/history audit for the release candidate, including new artifacts (product-baseline scope audited; legacy identity disposition and final artifacts remain)
 - [ ] Active GitHub CI with dependency audits, container verification and required checks
 - [ ] Remaining dependency PRs resolved through compatibility evidence
 - [x] Independently runnable provider-certification harness with sanitized evidence (protocol smoke only)
@@ -30,8 +30,10 @@ implementation item does not substitute for a verified release or live provider 
 
 ## Constraints
 
-The latest checkpoint is [scenario evaluation](releases/2026-10-09-evaluation-verification.md):
-complete local gates and Node.js 22 focused evaluation/config/CLI coverage. The broader Node.js 22 runtime
+The latest checkpoint is [publication audit](releases/2026-10-09-publication-audit.md):
+complete local gates, fail-closed disclosure tooling and explicit scope/identity limits.
+[Scenario evaluation](releases/2026-10-09-evaluation-verification.md) records the focused Node.js 22
+evaluation/config/CLI evidence. The broader Node.js 22 runtime
 baseline is [bounded storage and restart recovery](releases/2026-10-09-storage-verification.md).
 Future runtime changes must rerun the relevant gates before these results support a release.
 

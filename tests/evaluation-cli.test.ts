@@ -106,15 +106,19 @@ describe("evaluation CLI", () => {
     expect(JSON.parse(result.stdout).cases[0].status).toBe("assertion_failed");
     expect(result.stdout).not.toContain("synthetic-private-expectation");
   });
-  it("rejects inline credentials, persistent storage and malformed inputs without diagnostics leaking", async () => {
-    const configs = [
-      {
+  it.each([
+    {
+      name: "inline credentials",
+      config: {
         providers: [
           { type: "openai-responses", model: "model-alpha", api_key: "synthetic-private-value" },
         ],
       },
-      { providers: [{ type: "mock" }] },
-      {
+    },
+    { name: "mock in live mode", config: { providers: [{ type: "mock" }] } },
+    {
+      name: "persistent storage",
+      config: {
         providers: [
           {
             type: "openai-responses",
@@ -124,20 +128,24 @@ describe("evaluation CLI", () => {
         ],
         event_store: { type: "memory" },
       },
-      { providers: [{ type: "mock" }, { type: "mock", id: "provider-b" }] },
-    ];
-    for (const config of configs) {
-      const result = await run([
-        "run",
-        "live",
-        example,
-        await file("config.json", config),
-        "fixture-context",
-      ]);
-      expect(result.code).toBe(1);
-      expect(result.stdout).toBe("");
-      expect(result.stderr).not.toMatch(/synthetic-private-value|runtime-evaluation-|at /);
-    }
+    },
+    {
+      name: "multiple providers",
+      config: { providers: [{ type: "mock" }, { type: "mock", id: "provider-b" }] },
+    },
+  ])("rejects $name without diagnostics leaking", async ({ config }) => {
+    const result = await run([
+      "run",
+      "live",
+      example,
+      await file("config.json", config),
+      "fixture-context",
+    ]);
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).not.toMatch(/synthetic-private-value|runtime-evaluation-|at /);
+  });
+  it("rejects extra fixture arguments", async () => {
     expect((await run(["run", "fixture", example, "fixture-context", "unexpected"])).code).toBe(2);
   });
   it("records missing live credentials as a failed execution without calling a public endpoint", async () => {

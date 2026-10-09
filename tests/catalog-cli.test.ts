@@ -131,18 +131,25 @@ describe("catalog CLI and network boundary", () => {
     }
   });
 
-  it("rejects oversized files and missing credentials without producing a snapshot", async () => {
+  it("rejects oversized files without producing a snapshot", async () => {
     const large = await file("large.json", "x".repeat(4 * 1024 * 1024 + 1));
-    for (const args of [
-      ["radar", large],
-      ["discover", "openai", "MISSING_FIXTURE_CREDENTIAL", "account-a"],
-    ]) {
-      const result = await run(args);
-      expect(result.code).toBe(1);
-      expect(result.stdout).toBe("");
-    }
-    expect((await run(["discover", "openai", "fixture-credential", "account-a"])).code).toBe(2);
-    expect((await run(["diff", "before", "after", "unexpected"])).code).toBe(2);
+    const result = await run(["radar", large]);
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+  });
+  it("rejects missing credentials without producing a snapshot", async () => {
+    const result = await run(["discover", "openai", "MISSING_FIXTURE_CREDENTIAL", "account-a"]);
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+  });
+  it.each([
+    {
+      name: "invalid credential-variable name",
+      args: ["discover", "openai", "fixture-credential", "account-a"],
+    },
+    { name: "extra diff argument", args: ["diff", "before", "after", "unexpected"] },
+  ])("rejects $name", async ({ args }) => {
+    expect((await run(args)).code).toBe(2);
   });
 
   it("does not follow model-list redirects with credentials", async () => {

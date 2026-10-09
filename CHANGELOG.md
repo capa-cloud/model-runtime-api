@@ -7,6 +7,12 @@ tagged pre-alpha release.
 
 ### Fixes
 
+- Fail publication scans closed on unreadable/oversized/unsupported inputs, inspect staged Git
+  objects even when working files differ, and add reachable-history/current-hosted metadata audits.
+- Keep private policies outside the repository, redact finding locations/content, reject debug
+  environments and moving refs, and include detector regressions in the complete local gate.
+
+
 - Replace provider-wide capability claims with conservative model-specific declarations. Text
   adapters require explicit image/file/tool support and no longer advertise typed JSON or
   schema-enforced structured output. fal modality declarations are configurable and validated.
