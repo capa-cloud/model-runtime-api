@@ -21,6 +21,7 @@
 | [Evaluation verification](releases/2026-10-09-evaluation-verification.md) | Bounded scenario checks, profile binding, advisory recommendations and fresh test evidence |
 | [Publication audit verification](releases/2026-10-09-publication-audit.md) | Reachable Git/hosted/media scope, fail-closed scanner fixes and explicit legacy identity warnings |
 | [Toolchain verification](releases/2026-10-09-toolchain-verification.md) | Native compiler migration, dependency compatibility, clean Linux build and container lifecycle evidence |
+| [Source-release verification](releases/2026-10-09-source-release-verification.md) | Audited reproducible archive, tamper rejection and fresh archive installation/startup evidence |
 
 ## Implement and integrate
 

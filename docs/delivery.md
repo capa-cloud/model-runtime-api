@@ -26,12 +26,16 @@ implementation item does not substitute for a verified release or live provider 
 - [x] Independently runnable provider-certification harness with sanitized evidence (protocol smoke only)
 - [ ] Real-account adapter certification using authorized public-project credentials
 - [ ] Reproducible release artifacts and a new versioned release with verification evidence
+- [x] Fixed-commit source artifact preparation, byte-for-byte reproduction and archive cold-start check (local checkpoint, not a published release)
 - [x] Final documentation and cold-start installation/run check from a clean checkout (verified at current toolchain checkpoint; future release deltas must rerun)
 
 ## Constraints
 
-The latest checkpoint is [toolchain migration](releases/2026-10-09-toolchain-verification.md):
-complete local and Linux Node.js 22 gates with production-container smoke. The
+The latest checkpoint is [source-release preparation](releases/2026-10-09-source-release-verification.md):
+audited fixed-commit source artifacts, fresh complete local gates, Linux Node.js 22 artifact tests
+and installation/runtime verification from the extracted archive. The
+[toolchain migration](releases/2026-10-09-toolchain-verification.md) records the complete local and
+Linux Node.js 22 product gates with production-container smoke. The
 [publication audit](releases/2026-10-09-publication-audit.md) records disclosure scope/identity limits.
 [Scenario evaluation](releases/2026-10-09-evaluation-verification.md) records the focused Node.js 22
 evaluation/config/CLI evidence. The broader Node.js 22 runtime
