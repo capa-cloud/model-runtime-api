@@ -13,7 +13,7 @@ implementation item does not substitute for a verified release or live provider 
 - [x] Server streaming respects backpressure and contains asynchronous failures
 - [x] Orderly shutdown cancels active work and closes streams within a bounded grace period
 - [x] Resource retention and restart/recovery behavior are explicit and validated (local single-writer profile)
-- [ ] Provider capability claims and configuration match supported behavior
+- [x] Provider capability claims and configuration match supported adapter behavior (declarations, not live certification)
 - [ ] Model discovery/radar and scenario-evaluation workflows are runnable and documented
 
 ## Verification and publication
@@ -29,7 +29,8 @@ implementation item does not substitute for a verified release or live provider 
 
 ## Constraints
 
-The latest verified checkpoint is [bounded storage and restart recovery](releases/2026-10-09-storage-verification.md).
+The latest scoped checkpoint is [model capability declarations](releases/2026-10-09-capability-verification.md).
+The complete Node.js 22/24 baseline is [bounded storage and restart recovery](releases/2026-10-09-storage-verification.md).
 Future runtime changes must rerun the relevant gates before these results support a release.
 
 The reference runtime remains behind an authenticated gateway or on loopback. Tenant management,

@@ -46,6 +46,78 @@ describe("runtime provider configuration", () => {
     ])
       await expect(runtimeFromConfig(await fixture(value))).rejects.toThrow();
   });
+
+  it("loads model-specific text and media declarations", async () => {
+    const path = await fixture({
+      providers: [
+        {
+          type: "openai-responses",
+          model: "model-alpha",
+          api_key_env: "PROVIDER_A_API_KEY",
+          capabilities: { input_modalities: ["text", "image"], tools: true },
+        },
+        {
+          type: "fal-queue",
+          model: "models/alpha",
+          ability: "video-generation",
+          api_key_env: "PROVIDER_MEDIA_API_KEY",
+          input_modalities: ["text"],
+          output_modalities: ["video"],
+        },
+      ],
+    });
+    const runtime = await runtimeFromConfig(path);
+    expect((await runtime.manifests())[0]?.models[0]).toMatchObject({
+      tools: true,
+      input_modalities: ["text", "image"],
+      structured_output: false,
+    });
+    expect((await runtime.manifests())[1]?.models[0]?.output_modalities).toEqual(["video"]);
+    await runtime.close();
+  });
+
+  it("rejects unsafe or unsupported capability declarations", async () => {
+    for (const capabilities of [
+      null,
+      [],
+      { tools: "yes" },
+      { structured_output: true },
+      { input_modalities: ["audio"] },
+      { input_modalities: [] },
+      { input_modalities: null },
+      { input_modalities: ["text", "text"] },
+    ]) {
+      await expect(
+        runtimeFromConfig(
+          await fixture({
+            providers: [
+              {
+                type: "openai-responses",
+                model: "model-alpha",
+                api_key_env: "PROVIDER_A_API_KEY",
+                capabilities,
+              },
+            ],
+          }),
+        ),
+      ).rejects.toThrow();
+    }
+    await expect(
+      runtimeFromConfig(
+        await fixture({
+          providers: [
+            {
+              type: "fal-queue",
+              model: "models/alpha",
+              ability: "image-generation",
+              api_key_env: "PROVIDER_MEDIA_API_KEY",
+              input_modalities: ["audio"],
+            },
+          ],
+        }),
+      ),
+    ).rejects.toThrow("modality declaration");
+  });
 });
 
 async function fixture(value: unknown): Promise<string> {

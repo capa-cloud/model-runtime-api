@@ -7,6 +7,14 @@ tagged pre-alpha release.
 
 ### Fixes
 
+- Replace provider-wide capability claims with conservative model-specific declarations. Text
+  adapters require explicit image/file/tool support and no longer advertise typed JSON or
+  schema-enforced structured output. fal modality declarations are configurable and validated.
+- Reject disabled tool declarations in extensions before credential resolution or HTTP calls;
+  isolate capability configuration from caller and manifest mutations.
+- Preserve fal JSON input parts by serializing them into prompt text instead of silently dropping
+  their values. Native model parameter objects remain explicit provider extensions.
+
 - Add bounded memory retention and opt-in AES-256-GCM event journals with atomic idempotency claims,
   synchronized writes, single-writer ownership and conservative restart recovery.
 - Bound active execution admission, copy request data before asynchronous routing, and preserve

@@ -52,6 +52,7 @@ describe("public provider adapters", () => {
     runtime.register(
       new OpenAiResponsesProvider({
         apiKey: "fixture-credential",
+        capabilities: { tools: true },
         model: "model-public",
         baseUrl: `${fixture}/v1`,
       }),
@@ -111,6 +112,7 @@ describe("public provider adapters", () => {
     runtime.register(
       new AnthropicMessagesProvider({
         apiKey: "fixture-credential",
+        capabilities: { tools: true },
         model: "model-public",
         baseUrl: fixture,
       }),

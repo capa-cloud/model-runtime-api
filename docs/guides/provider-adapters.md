@@ -28,6 +28,57 @@ node packages/server/dist/cli.js
 Do not commit the deployment configuration when it contains private endpoints, account identifiers,
 or routing policy. The example uses fictional identifiers only.
 
+## Model capability declarations
+
+Adapter translation support is not evidence that every configured model supports that feature.
+Declare optional capabilities only after checking the exact model's public documentation and
+testing it with authorized credentials. Declarations are deployment assertions, not automatic
+discovery or certification. Changing a model requires rechecking its declarations.
+
+| Adapter | Default input | Default output | Optional declarations |
+| --- | --- | --- | --- |
+| OpenAI Responses | Text, JSON serialized as text | Text stream | Image/file input, tools |
+| Anthropic Messages | Text, JSON serialized as text | Text stream | Image input, tools |
+| fal Queue | Text, JSON serialized as text | JSON result | Image input; model-specific output modalities |
+
+For text adapters, `capabilities.input_modalities` replaces the input list, and
+`capabilities.tools` defaults to `false`. For example, a model verified to accept images and tools
+can use this provider configuration fragment:
+
+```json
+{
+  "type": "openai-responses",
+  "model": "model-public",
+  "api_key_env": "PROVIDER_A_API_KEY",
+  "capabilities": {
+    "input_modalities": ["text", "json", "image"],
+    "tools": true
+  }
+}
+```
+
+Only modalities the adapter can translate are allowed. Anthropic file input and audio/video input
+for either text adapter are rejected at configuration time. Empty, duplicate, null, malformed, or
+unknown capability fields are also rejected. Constructor arrays and returned manifests are copied
+so later caller mutation cannot silently change routing policy.
+
+Text adapters always declare `structured_output: false` and output modality `text`. They relay text
+and tool fragments, but do not enforce an output schema or materialize a typed JSON output part.
+Native format extensions are not a portable schema guarantee. Requests requiring structured
+output or JSON output modality therefore fail before a provider call. Disabled tools cannot be
+enabled by putting tool declarations in request extensions.
+
+For fal, `input_modalities` and `output_modalities` are top-level provider configuration fields.
+The CLI supports text/JSON/image inputs; audio/video/file inputs require a programmatic `mapInput`
+implementation. Output declarations describe the model's result/artifact semantics, not automatic
+result validation. No model modality is inferred from its name or ability.
+
+**Compatibility note:** previous pre-alpha manifests advertised image inputs, tools, JSON output
+and structured output unconditionally. Existing applications using image or tool requests must
+now explicitly declare verified support. fal applications requiring image/video/audio output must
+also declare the exact output modality. Do not restore the old claims by assuming provider-wide
+model capabilities.
+
 ## OpenAI Responses
 
 - Calls `POST /v1/responses` with `stream: true` and `store: false`.
@@ -49,6 +100,9 @@ or routing policy. The example uses fictional identifiers only.
   them.
 - Default input mapping handles prompt and image URLs; model-specific input belongs under
   `extensions.fal.input` or a programmatic `mapInput` function.
+- Text and JSON input parts become newline-separated prompt text in their original order. JSON
+  values, including null/scalars, are serialized rather than dropped; they are not merged into
+  native model parameter fields.
 - Artifact URLs can expire and are not copied or made permanent by this runtime.
 
 Once submission succeeds, later errors are non-retryable. A submit transport failure is also

@@ -1,5 +1,8 @@
 import {
   assertSafeBaseUrl,
+  assertTextCapabilities,
+  textCapabilities,
+  type TextProviderCapabilities,
   type ModelProvider,
   type ProviderExecutionContext,
   providerHttpError,
@@ -21,6 +24,7 @@ export interface OpenAiResponsesProviderOptions {
   abilities?: string[];
   baseUrl?: string;
   fetch?: typeof fetch;
+  capabilities?: TextProviderCapabilities;
 }
 
 export class OpenAiResponsesProvider implements ModelProvider {
@@ -30,12 +34,14 @@ export class OpenAiResponsesProvider implements ModelProvider {
   readonly #abilities: string[];
   readonly #baseUrl: URL;
   readonly #fetch: typeof fetch;
+  readonly #capabilities: ReturnType<typeof textCapabilities>;
 
   constructor(options: OpenAiResponsesProviderOptions) {
     this.id = options.id ?? "openai";
     this.#apiKey = options.apiKey;
     this.#model = options.model;
-    this.#abilities = options.abilities ?? ["text-generation"];
+    this.#abilities = [...(options.abilities ?? ["text-generation"])];
+    this.#capabilities = textCapabilities(options.capabilities, ["text", "json", "image", "file"]);
     this.#baseUrl = assertSafeBaseUrl(options.baseUrl ?? "https://api.openai.com/v1");
     this.#fetch = options.fetch ?? globalThis.fetch;
   }
@@ -47,12 +53,12 @@ export class OpenAiResponsesProvider implements ModelProvider {
       models: [
         {
           model: this.#model,
-          abilities: this.#abilities,
-          input_modalities: ["text", "image", "file", "json"],
-          output_modalities: ["text", "json"],
+          abilities: [...this.#abilities],
+          input_modalities: [...this.#capabilities.input_modalities],
+          output_modalities: ["text"],
           stream: true,
-          tools: true,
-          structured_output: true,
+          tools: this.#capabilities.tools,
+          structured_output: false,
           async: false,
           cancel: true,
         },
@@ -63,6 +69,7 @@ export class OpenAiResponsesProvider implements ModelProvider {
   async *execute(context: ProviderExecutionContext): AsyncIterable<ProviderEvent> {
     const extension = asRecord(context.request.extensions?.openai);
     const requestExtension = asRecord(extension.request);
+    assertTextCapabilities(context.request, this.#capabilities, requestExtension);
     const response = await this.#fetch(new URL("responses", withTrailingSlash(this.#baseUrl)), {
       method: "POST",
       redirect: "error",

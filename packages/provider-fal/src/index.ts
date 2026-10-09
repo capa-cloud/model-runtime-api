@@ -1,5 +1,6 @@
 import {
   assertSafeBaseUrl,
+  declaredModalities,
   type ModelProvider,
   type ProviderExecutionContext,
   providerHttpError,
@@ -57,7 +58,21 @@ export class FalQueueProvider implements ModelProvider {
         options.cancelTimeoutMs > 60_000)
     )
       throw new Error("cancelTimeoutMs must be an integer from 1 to 60000");
-    this.#options = options;
+    this.#options = {
+      ...options,
+      inputModalities: declaredModalities(
+        options.inputModalities,
+        ["text", "json"],
+        options.mapInput
+          ? ["text", "json", "image", "audio", "video", "file"]
+          : ["text", "json", "image"],
+      ),
+      outputModalities: declaredModalities(
+        options.outputModalities,
+        ["json"],
+        ["text", "json", "image", "audio", "video", "file"],
+      ),
+    };
     this.#baseUrl = assertSafeBaseUrl(options.baseUrl ?? "https://queue.fal.run");
     this.#fetch = options.fetch ?? globalThis.fetch;
   }
@@ -70,8 +85,8 @@ export class FalQueueProvider implements ModelProvider {
         {
           model: this.#options.model,
           abilities: [this.#options.ability],
-          input_modalities: this.#options.inputModalities ?? ["text", "image", "json"],
-          output_modalities: this.#options.outputModalities ?? ["image"],
+          input_modalities: [...this.#options.inputModalities!],
+          output_modalities: [...this.#options.outputModalities!],
           stream: false,
           tools: false,
           structured_output: false,
@@ -83,6 +98,11 @@ export class FalQueueProvider implements ModelProvider {
   }
 
   async *execute(context: ProviderExecutionContext): AsyncIterable<ProviderEvent> {
+    if (context.request.input.some((part) => !this.#options.inputModalities!.includes(part.type)))
+      throw new RuntimeError(
+        "capability_unavailable",
+        "Request exceeds configured adapter capabilities",
+      );
     const apiKey = await resolveSecret(this.#options.apiKey);
     const submitUrl = new URL(
       this.#options.model.replace(/^\/+/, ""),
@@ -191,8 +211,8 @@ export class FalQueueProvider implements ModelProvider {
     const extension = asRecord(request.extensions?.fal);
     const explicit = asRecord(extension.input);
     const prompt = request.input
-      .filter((part) => part.type === "text")
-      .map((part) => part.text)
+      .filter((part) => part.type === "text" || part.type === "json")
+      .map((part) => (part.type === "text" ? part.text : JSON.stringify(part.value)))
       .join("\n");
     const images: string[] = [];
     for (const part of request.input) if (part.type === "image") images.push(part.uri);

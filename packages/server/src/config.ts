@@ -6,7 +6,11 @@ import {
   FileEventStore,
   assertSafeBaseUrl,
   type EventStoreLimits,
+  textCapabilities,
+  declaredModalities,
+  type TextProviderCapabilities,
 } from "@model-runtime/core";
+import type { Modality } from "@model-runtime/protocol";
 import { AnthropicMessagesProvider } from "@model-runtime/provider-anthropic";
 import { FalQueueProvider } from "@model-runtime/provider-fal";
 import { MockProvider } from "@model-runtime/provider-mock";
@@ -21,6 +25,7 @@ type ProviderConfig =
       abilities?: string[];
       api_key_env: string;
       base_url?: string;
+      capabilities?: TextProviderCapabilities;
     }
   | {
       type: "anthropic-messages";
@@ -29,6 +34,7 @@ type ProviderConfig =
       abilities?: string[];
       api_key_env: string;
       base_url?: string;
+      capabilities?: TextProviderCapabilities;
     }
   | {
       type: "fal-queue";
@@ -37,6 +43,8 @@ type ProviderConfig =
       ability: string;
       api_key_env: string;
       base_url?: string;
+      input_modalities?: Modality[];
+      output_modalities?: Modality[];
     };
 
 interface RuntimeConfig {
@@ -105,6 +113,7 @@ export async function runtimeFromConfig(path?: string): Promise<ModelRuntime> {
             abilities: provider.abilities,
             apiKey,
             baseUrl: provider.base_url,
+            capabilities: provider.capabilities,
           }),
         );
       } else if (provider.type === "anthropic-messages") {
@@ -115,6 +124,7 @@ export async function runtimeFromConfig(path?: string): Promise<ModelRuntime> {
             abilities: provider.abilities,
             apiKey,
             baseUrl: provider.base_url,
+            capabilities: provider.capabilities,
           }),
         );
       } else if (provider.type === "fal-queue") {
@@ -125,6 +135,8 @@ export async function runtimeFromConfig(path?: string): Promise<ModelRuntime> {
             ability: provider.ability,
             apiKey,
             baseUrl: provider.base_url,
+            inputModalities: provider.input_modalities,
+            outputModalities: provider.output_modalities,
           }),
         );
       } else {
@@ -229,10 +241,46 @@ function validateConfig(value: unknown): RuntimeConfig {
       record.type === "mock"
         ? new Set(["type", "id", "model", "abilities"])
         : record.type === "fal-queue"
-          ? new Set(["type", "id", "model", "ability", "api_key_env", "base_url"])
-          : new Set(["type", "id", "model", "abilities", "api_key_env", "base_url"]);
+          ? new Set([
+              "type",
+              "id",
+              "model",
+              "ability",
+              "api_key_env",
+              "base_url",
+              "input_modalities",
+              "output_modalities",
+            ])
+          : new Set([
+              "type",
+              "id",
+              "model",
+              "abilities",
+              "api_key_env",
+              "base_url",
+              "capabilities",
+            ]);
     if (Object.keys(record).some((key) => !allowedFields.has(key))) {
       throw new Error("Provider config contains an unsupported or unsafe field");
+    }
+    if (record.type === "openai-responses" || record.type === "anthropic-messages") {
+      textCapabilities(
+        record.capabilities as TextProviderCapabilities | undefined,
+        record.type === "openai-responses"
+          ? ["text", "json", "image", "file"]
+          : ["text", "json", "image"],
+      );
+    } else if (record.type === "fal-queue") {
+      declaredModalities(
+        record.input_modalities as Modality[] | undefined,
+        ["text", "json"],
+        ["text", "json", "image"],
+      );
+      declaredModalities(
+        record.output_modalities as Modality[] | undefined,
+        ["json"],
+        ["text", "json", "image", "audio", "video", "file"],
+      );
     }
     for (const key of ["id", "model", "ability"]) {
       if (

@@ -1,5 +1,8 @@
 import {
   assertSafeBaseUrl,
+  assertTextCapabilities,
+  textCapabilities,
+  type TextProviderCapabilities,
   type ModelProvider,
   type ProviderExecutionContext,
   providerHttpError,
@@ -22,6 +25,7 @@ export interface AnthropicMessagesProviderOptions {
   abilities?: string[];
   baseUrl?: string;
   fetch?: typeof fetch;
+  capabilities?: TextProviderCapabilities;
 }
 
 export class AnthropicMessagesProvider implements ModelProvider {
@@ -29,10 +33,12 @@ export class AnthropicMessagesProvider implements ModelProvider {
   readonly #options: AnthropicMessagesProviderOptions;
   readonly #baseUrl: URL;
   readonly #fetch: typeof fetch;
+  readonly #capabilities: ReturnType<typeof textCapabilities>;
 
   constructor(options: AnthropicMessagesProviderOptions) {
     this.id = options.id ?? "anthropic";
-    this.#options = options;
+    this.#options = { ...options, abilities: [...(options.abilities ?? ["text-generation"])] };
+    this.#capabilities = textCapabilities(options.capabilities, ["text", "json", "image"]);
     this.#baseUrl = assertSafeBaseUrl(options.baseUrl ?? "https://api.anthropic.com");
     this.#fetch = options.fetch ?? globalThis.fetch;
   }
@@ -44,12 +50,12 @@ export class AnthropicMessagesProvider implements ModelProvider {
       models: [
         {
           model: this.#options.model,
-          abilities: this.#options.abilities ?? ["text-generation"],
-          input_modalities: ["text", "image", "json"],
-          output_modalities: ["text", "json"],
+          abilities: [...this.#options.abilities!],
+          input_modalities: [...this.#capabilities.input_modalities],
+          output_modalities: ["text"],
           stream: true,
-          tools: true,
-          structured_output: true,
+          tools: this.#capabilities.tools,
+          structured_output: false,
           async: false,
           cancel: true,
         },
@@ -60,6 +66,7 @@ export class AnthropicMessagesProvider implements ModelProvider {
   async *execute(context: ProviderExecutionContext): AsyncIterable<ProviderEvent> {
     const extension = asRecord(context.request.extensions?.anthropic);
     const requestExtension = asRecord(extension.request);
+    assertTextCapabilities(context.request, this.#capabilities, requestExtension);
     const response = await this.#fetch(new URL("v1/messages", withTrailingSlash(this.#baseUrl)), {
       method: "POST",
       redirect: "error",

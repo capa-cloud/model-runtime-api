@@ -14,8 +14,9 @@
 | [OpenAPI](../spec/openapi.yaml) | Machine-readable HTTP surface |
 | [Roadmap](../ROADMAP.md) | Completed v0.1 scope and explicitly deferred work |
 | [Delivery checklist](delivery.md) | Current acceptance gates and remaining final-delivery work |
-| [Current delivery checkpoint](releases/2026-10-09-delivery-checkpoint.md) | Latest transport, lifecycle, SDK and security verification evidence |
+| [Transport delivery checkpoint](releases/2026-10-09-delivery-checkpoint.md) | Transport, lifecycle, SDK and security verification evidence |
 | [Storage verification](releases/2026-10-09-storage-verification.md) | Current persistence, retention, replay, process-crash and container evidence |
+| [Capability verification](releases/2026-10-09-capability-verification.md) | Conservative declarations, configuration, no-call rejection and JSON input mapping |
 
 ## Implement and integrate
 

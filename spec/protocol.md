@@ -39,6 +39,12 @@ Routing must infer required input modalities from all input parts, in addition t
 declared requirements. Omitting a requirement or supplying a narrower list cannot make an
 unsupported modality eligible. Public errors must not echo caller-controlled ability content,
 metadata keys or validation instance paths.
+Model capabilities describe a configured model, not the union of features supported by a vendor.
+Optional capabilities must not be inferred solely from an adapter name. Bundled text adapters
+default to text/JSON-as-text input and text output; image/file inputs and tools need explicit
+model-specific declarations. They do not guarantee typed JSON or schema-enforced structured output.
+Deployment declarations are not live certification. Request extensions must not enable tools
+disabled by the configured capability policy.
 Execution deadline exhaustion is terminal and not automatically retryable: a downstream task may
 already have been accepted or produced output. A caller may explicitly choose a new request/deadline
 after assessing that ambiguity; the runtime does not silently reset the exhausted budget.

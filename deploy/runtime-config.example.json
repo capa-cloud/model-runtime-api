@@ -3,6 +3,7 @@
     {
       "type": "openai-responses",
       "id": "provider-a",
+      "capabilities": { "input_modalities": ["text", "json"], "tools": false },
       "model": "model-public",
       "abilities": ["text-generation"],
       "api_key_env": "PROVIDER_A_API_KEY"
@@ -10,6 +11,7 @@
     {
       "type": "anthropic-messages",
       "id": "provider-b",
+      "capabilities": { "input_modalities": ["text", "json"], "tools": false },
       "model": "model-public",
       "abilities": ["text-generation"],
       "api_key_env": "PROVIDER_B_API_KEY"
@@ -19,6 +21,8 @@
       "id": "provider-media",
       "model": "models/image",
       "ability": "image-generation",
+      "input_modalities": ["text", "json"],
+      "output_modalities": ["image"],
       "api_key_env": "PROVIDER_MEDIA_API_KEY"
     }
   ]
