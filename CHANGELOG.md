@@ -38,6 +38,11 @@ tagged pre-alpha release.
 
 ### Maintenance
 
+- Add an isolated scenario-evaluation library/CLI, deterministic text/JSON/tool/media assertions,
+  bounded cancellation and private summary reports. Synthetic fixtures are not model benchmarks.
+- Bind recommendations to fresh suite, context, execution environment, configuration and capability
+  evidence. Rank one metric at a time with separate quality gates, explicit ties and exclusions.
+
 - Add complete account-visible OpenAI/Anthropic inventory discovery, visibility radar, private
   atomic polling state and a repository CLI command. Vendor metadata does not imply model release,
   retirement, quality or inference capability. No schedules or notifications are installed.

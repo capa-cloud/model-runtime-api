@@ -69,7 +69,11 @@ export async function runtimeFromConfig(path?: string): Promise<ModelRuntime> {
     runtime.register(new MockProvider(), { maxConcurrency: 4, maxQueueDepth: 8 });
     return runtime;
   }
-  const config = validateConfig(JSON.parse(await readFile(path, "utf8")));
+  return runtimeFromConfiguration(JSON.parse(await readFile(path, "utf8")));
+}
+
+export async function runtimeFromConfiguration(value: unknown): Promise<ModelRuntime> {
+  const config = validateConfig(value);
   const limits: EventStoreLimits = {
     maxExecutions: config.event_store?.max_executions,
     maxBytes: config.event_store?.max_bytes,

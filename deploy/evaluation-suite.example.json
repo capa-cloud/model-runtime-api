@@ -1,0 +1,27 @@
+{
+  "schema_version": "evaluation/1",
+  "id": "mock-text-contract",
+  "case_timeout_ms": 1000,
+  "run_timeout_ms": 10000,
+  "repetitions": 5,
+  "cases": [
+    {
+      "id": "exact-output",
+      "scenario": "text-contract",
+      "request": {
+        "ability": "text-generation",
+        "input": [{ "type": "text", "text": "synthetic fixture" }]
+      },
+      "checks": [{ "kind": "text_equals", "value": "hello from mock" }]
+    },
+    {
+      "id": "output-fragment",
+      "scenario": "text-contract",
+      "request": {
+        "ability": "text-generation",
+        "input": [{ "type": "text", "text": "another synthetic fixture" }]
+      },
+      "checks": [{ "kind": "text_contains", "value": "mock" }]
+    }
+  ]
+}

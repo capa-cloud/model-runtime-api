@@ -1,0 +1,22 @@
+{
+  "name": "@model-runtime/evaluation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "bin": {
+    "model-runtime-evaluate": "./dist/cli.js"
+  },
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@model-runtime/catalog": "workspace:*",
+    "@model-runtime/core": "workspace:*",
+    "@model-runtime/protocol": "workspace:*",
+    "@model-runtime/server": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -b"
+  }
+}

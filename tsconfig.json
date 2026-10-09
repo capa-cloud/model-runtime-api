@@ -10,6 +10,7 @@
     { "path": "packages/provider-fal" },
     { "path": "packages/conformance" },
     { "path": "packages/catalog" },
+    { "path": "packages/evaluation" },
     { "path": "packages/otel" },
     { "path": "packages/server" },
     { "path": "packages/sdk-typescript" }

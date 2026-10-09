@@ -60,6 +60,7 @@ The gateway owns tenant trust. The runtime owns provider execution.
 | Understand boundaries and packages | [Architecture](docs/architecture.md) |
 | Integrate an application | [Quick start](#quick-start) and the [TypeScript](packages/sdk-typescript/src/index.ts), [Go](sdk/go/README.md), or [Python](sdk/python/README.md) client |
 | Configure a public provider adapter | [Provider adapters](docs/guides/provider-adapters.md) |
+| Discover models or evaluate scenarios | [Model discovery](docs/guides/model-discovery.md) and [Scenario evaluation](docs/guides/scenario-evaluation.md) |
 | Put an authenticated gateway in front | [Gateway integration](docs/guides/gateway-integration.md) |
 | Implement another adapter | [Adding a provider](docs/guides/adding-a-provider.md) |
 | Review protocol semantics | [Runtime model](spec/runtime-model.md), [Protocol](spec/protocol.md), and [OpenAPI](spec/openapi.yaml) |
@@ -188,6 +189,7 @@ See [ADR-0002](docs/decisions/0002-usage-is-not-billing.md).
 | `@model-runtime/sdk-typescript` | TypeScript HTTP/SSE client |
 | `@model-runtime/otel` | Metadata-only OpenTelemetry GenAI attribute mapping |
 | `@model-runtime/catalog` | Validated capability snapshots, account-visible model discovery and visibility radar |
+| `@model-runtime/evaluation` | Bounded scenario assertions, private evidence and exact-profile recommendations |
 | `sdk/go`, `sdk/python` | Go and Python runtime clients |
 
 Workspace package names remain private until the public API receives enough implementation feedback.

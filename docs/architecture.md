@@ -32,6 +32,7 @@ flowchart TB
 | `conformance` | Reusable lifecycle assertions | Vendor live-account validation |
 | `otel` | Metadata-only GenAI attribute mapping | Prompt/output capture |
 | `catalog` | Capability snapshots and diffs | Automatic production release |
+| `evaluation` | Bounded scenario checks, configuration-bound evidence and advisory recommendations | Official benchmarks, tool/code execution or automatic routing |
 | `sdk-*` | Runtime HTTP/SSE clients | Provider credentials or routing |
 
 ## Synchronous model path

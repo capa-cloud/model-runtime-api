@@ -31,6 +31,9 @@ export default defineConfig({
       "@model-runtime/catalog": fileURLToPath(
         new URL("./packages/catalog/src/index.ts", import.meta.url),
       ),
+      "@model-runtime/evaluation": fileURLToPath(
+        new URL("./packages/evaluation/src/index.ts", import.meta.url),
+      ),
       "@model-runtime/server": fileURLToPath(
         new URL("./packages/server/src/index.ts", import.meta.url),
       ),
