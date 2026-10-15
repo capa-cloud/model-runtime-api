@@ -37,7 +37,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.13",
     "@types/node": "26.6.4",
-    "@secretlint/secretlint-rule-preset-recommend": "13.0.5",
+    "@secretlint/secretlint-rule-preset-recommend": "13.0.7",
     "@secretlint/node": "13.0.5",
     "secretlint": "13.0.5",
     "typescript": "7.0.2",
